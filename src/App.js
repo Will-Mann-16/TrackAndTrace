@@ -42,7 +42,7 @@ function App() {
           <Nav/>
         </Topbar>
         <Container/>
-        <Footer style={{ textAlign: "center" }}>Developed by Will Mann</Footer>
+        <Footer style={{ textAlign: "center" }}>Developed by <a href='https://www.willmann.me.uk'>Will Mann</a></Footer>
       </Layout>
     </BrowserRouter>
   );
