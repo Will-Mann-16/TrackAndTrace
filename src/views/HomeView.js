@@ -21,7 +21,7 @@ export default function HomeView() {
         Welcome back, {user.displayName}
       </Title>
       <Row gutter={[8, 8]}>
-        <Col span={12}>
+        <Col md={12} xs={24}>
           <Card title='Upcoming sessions'>
             <List
               dataSource={sessions}
@@ -90,7 +90,7 @@ export default function HomeView() {
             />
           </Card>{" "}
         </Col>
-        <Col span={12}>
+        <Col md={12} xs={24}>
           <Card title='Your teams'>
             <List
               itemLayout='horizontal'
@@ -105,7 +105,7 @@ export default function HomeView() {
             />
           </Card>
         </Col>
-        <Col span={12}>
+        <Col md={12} xs={24}>
           <Card title='Contact Information'>
             <p>
               Phone Number:{" "}
@@ -122,7 +122,7 @@ export default function HomeView() {
             </p>
           </Card>
         </Col>
-        <Col span={12}>
+        <Col md={12} xs={24}>
           <Card title='Positive COVID-19 Test'>
             <p>
               If you have a positive test result returned from the NHS and you

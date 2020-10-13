@@ -25,9 +25,12 @@ import {
   DateTimeInput,
   ReferenceInput,
   SelectInput,
+  SimpleList,
 } from "react-admin";
 import { FirebaseDataProvider } from "react-admin-firebase";
 import { config } from "../firebase";
+import { useMediaQuery } from "@material-ui/core";
+import { DateTime } from "luxon";
 export default function AdminView() {
   return (
     <Admin
@@ -52,15 +55,24 @@ export default function AdminView() {
 }
 
 function UserList(props) {
+  const isSmall = useMediaQuery((theme) => theme.breakpoints.down("md"));
   return (
     <List {...props}>
-      <Datagrid rowClick='edit'>
-        {/* <ImageField source="photoURL" /> */}
-        <TextField source='displayName' />
-        <EmailField source='email' />
-        <TextField source='phoneNumber' />
-        <BooleanField source='admin' />
-      </Datagrid>
+      {isSmall ? (
+        <SimpleList
+          primaryText={(record) => record.displayName}
+          secondaryText={(record) => record.email}
+          tertiary={(record) => record.phoneNumber}
+        />
+      ) : (
+        <Datagrid rowClick='edit'>
+          {/* <ImageField source="photoURL" /> */}
+          <TextField source='displayName' />
+          <EmailField source='email' />
+          <TextField source='phoneNumber' />
+          <BooleanField source='admin' />
+        </Datagrid>
+      )}
     </List>
   );
 }
@@ -80,21 +92,30 @@ function EditUser(props) {
 }
 
 function TeamList(props) {
+  const isSmall = useMediaQuery((theme) => theme.breakpoints.down("md"));
   return (
     <List {...props}>
-      <Datagrid rowClick='edit'>
-        <TextField source='name' />
-        <TextField source='bio' />
-        <FunctionField
-          label='Members'
-          render={(record) => `${record?.members?.length ?? 0} members`}
+      {isSmall ? (
+        <SimpleList
+          primaryText={(record) => record.name}
+          secondaryText={(record) => record.bio}
+          tertiary={(record) => `${record?.members?.length ?? 0} members`}
         />
-        <ReferenceArrayField source='captains' reference='users'>
-          <SingleFieldList>
-            <ChipField source='displayName' />
-          </SingleFieldList>
-        </ReferenceArrayField>
-      </Datagrid>
+      ) : (
+        <Datagrid rowClick='edit'>
+          <TextField source='name' />
+          <TextField source='bio' />
+          <FunctionField
+            label='Members'
+            render={(record) => `${record?.members?.length ?? 0} members`}
+          />
+          <ReferenceArrayField source='captains' reference='users'>
+            <SingleFieldList>
+              <ChipField source='displayName' />
+            </SingleFieldList>
+          </ReferenceArrayField>
+        </Datagrid>
+      )}
     </List>
   );
 }
@@ -149,21 +170,41 @@ function CreateTeam(props) {
 }
 
 function SessionList(props) {
+  const isSmall = useMediaQuery((theme) => theme.breakpoints.down("md"));
   return (
     <List {...props}>
-      <Datagrid rowClick='edit'>
-        <DateField showTime source='start' />
-        <DateField showTime source='end' />
-        <ReferenceField source='team' reference='teams'>
-          <TextField source='name' />
-        </ReferenceField>
-        <TextField source='name' />
-        <TextField source='description' />
-        <FunctionField
-          label='Attending'
-          render={(record) => `${record?.attending?.length ?? 0} attending`}
+      {isSmall ? (
+        <SimpleList
+          primaryText={(record) => record.name}
+          secondaryText={(record) => record.description}
+          tertiary={(session) =>
+            `${DateTime.fromJSDate(session.start.toDate()).toFormat(
+              "ccc dd LLL T"
+            )} - ${DateTime.fromJSDate(session.end.toDate()).toFormat(
+              DateTime.fromJSDate(session.start.toDate()).hasSame(
+                DateTime.fromJSDate(session.end.toDate()),
+                "day"
+              )
+                ? "T"
+                : "ccc dd LLL T"
+            )}`
+          }
         />
-      </Datagrid>
+      ) : (
+        <Datagrid rowClick='edit'>
+          <DateField showTime source='start' />
+          <DateField showTime source='end' />
+          <ReferenceField source='team' reference='teams'>
+            <TextField source='name' />
+          </ReferenceField>
+          <TextField source='name' />
+          <TextField source='description' />
+          <FunctionField
+            label='Attending'
+            render={(record) => `${record?.attending?.length ?? 0} attending`}
+          />
+        </Datagrid>
+      )}
     </List>
   );
 }

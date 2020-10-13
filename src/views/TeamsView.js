@@ -18,7 +18,7 @@ export default function TeamsView() {
     <>
       <List
         dataSource={teams}
-        grid={{ gutter: 16, column: 3 }}
+        grid={{ gutter: 16, xs: 1, md: 3 }}
         renderItem={(team) => (
           <List.Item key={team.id}>
             <Card
