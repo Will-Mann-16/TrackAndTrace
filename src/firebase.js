@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 import app from "firebase/app";
 import "firebase/auth";
 import "firebase/firestore";
+import "firebase/analytics";
 import * as firebaseUI from "firebaseui";
 import { DateTime } from "luxon";
 
@@ -22,6 +23,7 @@ class Firebase {
     this.auth = app.auth();
     this.firestore = app.firestore();
     this.ui = new firebaseUI.auth.AuthUI(this.auth);
+    this.analytics = app.analytics();
   }
 
   onAuthStateChanged = (callback) => {
