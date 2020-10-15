@@ -28,14 +28,15 @@ import {
   SimpleList,
 } from "react-admin";
 import { FirebaseDataProvider } from "react-admin-firebase";
-import { config } from "../firebase";
+import { config, useFirebase } from "../firebase";
 import { useMediaQuery } from "@material-ui/core";
 import { DateTime } from "luxon";
 export default function AdminView() {
+    const firebase = useFirebase();
   return (
     <Admin
       layout={(props) => <Layout {...props} appBar={() => null} />}
-      dataProvider={FirebaseDataProvider(config, {})}
+      dataProvider={FirebaseDataProvider(config, {app: firebase.app, associateUsersById: true, metaFieldCasing: 'camel'})}
     >
       <Resource name='users' list={UserList} edit={EditUser} />
       <Resource
@@ -82,9 +83,9 @@ function EditUser(props) {
     <Edit {...props}>
       <SimpleForm>
         <TextInput source='id' disabled />
-        <TextInput source='displayName' />
-        <TextInput source='email' type='email' />
-        <TextInput source='phoneNumber' type='tel' />
+        <TextInput source='displayName' disabled />
+        <TextInput source='email' type='email' disabled  />
+        <TextInput source='phoneNumber' type='tel' disabled />
         <BooleanInput source='admin' />
       </SimpleForm>
     </Edit>

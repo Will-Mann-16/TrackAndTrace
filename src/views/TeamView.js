@@ -7,7 +7,7 @@ import {
   UsergroupAddOutlined,
 } from "@ant-design/icons";
 import {
-  Card,
+  Card as C,
   Typography,
   Row,
   Col,
@@ -22,6 +22,12 @@ import {
 } from "antd";
 import { DateTime } from "luxon";
 import moment from 'moment';
+import styled from 'styled-components'
+
+const Card = styled(C)`
+  height: 100%;
+`;
+
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -42,6 +48,7 @@ export default function TeamView() {
   const [edit, setEdit] = useState(false);
   const [members, setMembers] = useState(false);
   const [addSession, setAddSession] = useState(false);
+  const [attendingMembers, setAttendingMembers] = useState(undefined);
 
   useEffect(() => {
     const getData = async () => {
@@ -147,11 +154,11 @@ export default function TeamView() {
           renderItem={(session) => (
             <List.Item
               key={session.id}
-              
               actions={
                 (team.captains?.find((e) => e.id === user.id) ||
                   user.admin) && [
-                  <IconText text='Edit' icon={EditOutlined} onClick={() => setAddSession(session)} type='text' key='edit' />
+                  <IconText text='Edit' icon={EditOutlined} onClick={() => setAddSession(session)} type='text' key='edit' />,
+                  <IconText text="Attending" icon={UsergroupAddOutlined} onClick={() => setAttendingMembers(session.id)} type='text' key='attending'/>
                 ]
               }
               extra={
@@ -210,6 +217,7 @@ export default function TeamView() {
                 )}`}
               />
               {session.description}
+              
             </List.Item>
           )}
         />
@@ -235,6 +243,11 @@ export default function TeamView() {
             toggle={() => setAddSession(undefined)}
             setTeam={setData}
           />
+          <Modal title="Attending Members" visible={!!attendingMembers} cancelText="Close" footer={[
+              <Button key='close' onClick={() => setAttendingMembers(undefined)}>Close</Button>
+          ]} onCancel={() => setAttendingMembers(undefined)}>
+            <AttendingMembers session={attendingMembers}/>
+          </Modal>
         </>
       )}
     </>
@@ -433,4 +446,28 @@ function AssignMembers({ visible, toggle, team: { id, ...values }, setTeam }) {
       </Form>
     </Modal>
   );
+}
+
+
+function AttendingMembers({ session }){
+    const firebase = useFirebase();
+    const [members, setMembers] = useState([]);
+
+    useEffect(() => {
+        const getData = async () => {
+            try{
+                setMembers(await firebase.getMembersAttending(session));
+            }catch(e){
+                console.error(e);
+            }
+        }
+        getData();
+    }, []);
+
+    return (
+        <List dataSource={members} renderItem={member => <List.Item key={member.id}>
+            <List.Item.Meta title={member.displayName} description={member.phoneNumber} />
+        </List.Item>} />
+    )
+
 }

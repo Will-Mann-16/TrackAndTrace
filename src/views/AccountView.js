@@ -19,8 +19,8 @@ export default function AccountView() {
         console.error(e);
         setReauth(true);
         firebase.ui.start("#firebaseui-reauth-container", {
-          signInSuccessUrl: "http://localhost:3000/accounts",
-          signInOptions: [
+            signInSuccessUrl: process.env.NODE_ENV === 'production' ? process.env.REACT_APP_PROD_URL : process.env.REACT_APP_DEV_URL,
+            signInOptions: [
             {
               provider: firebase.app.auth.PhoneAuthProvider.PROVIDER_ID,
               defaultCountry: "GB",
@@ -29,7 +29,6 @@ export default function AccountView() {
                 .getNationalNumber(),
             },
           ],
-          tosUrl: "https://localhost:3000",
           callbacks: {
             signInSuccessWithAuthResult: function (authResult, redirectUrl) {
               setReauth(false);

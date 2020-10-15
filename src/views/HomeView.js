@@ -1,8 +1,13 @@
 import React from "react";
-import { Typography, Row, Col, Card, List, Button } from "antd";
+import { Typography, Row, Col, Card as C, List, Button } from "antd";
 import { useFirebase, useTeams, useSessions, useUser } from "../firebase";
 import { Link } from "react-router-dom";
 import { DateTime } from "luxon";
+import styled from "styled-components";
+
+const Card = styled(C)`
+  height: 100%;
+`;
 
 const { Title } = Typography;
 

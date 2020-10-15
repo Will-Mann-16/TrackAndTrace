@@ -4,6 +4,30 @@ import App from "./App";
 import * as serviceWorker from "./serviceWorker";
 import { Providers } from "./firebase";
 import './index.css';
+import * as Sentry from "@sentry/react";
+import { Integrations } from "@sentry/tracing";
+import LogRocket from 'logrocket';
+import setupLogRocketReact from 'logrocket-react';
+
+LogRocket.init('trackandtrace/trackandtrace');
+setupLogRocketReact(LogRocket);
+
+Sentry.init({
+  dsn: "https://a8ab1a21831c4d5da8928f4760e9aab5@o461835.ingest.sentry.io/5464198",
+  integrations: [
+    new Integrations.BrowserTracing(),
+  ],
+
+  // We recommend adjusting this value in production, or using tracesSampler
+  // for finer control
+  tracesSampleRate: 1.0,
+});
+
+LogRocket.getSessionURL(sessionURL => {
+  Sentry.configureScope(scope => {
+    scope.setExtra("sessionURL", sessionURL);
+  });
+});
 
 ReactDOM.render(
   <React.StrictMode>

@@ -5,6 +5,8 @@ import "firebase/firestore";
 import "firebase/analytics";
 import * as firebaseUI from "firebaseui";
 import { DateTime } from "luxon";
+import LogRocket from 'logrocket';
+import * as Sentry from '@sentry/react'
 
 export const config = {
   apiKey: process.env.REACT_APP_API_KEY,
@@ -13,6 +15,8 @@ export const config = {
   projectId: process.env.REACT_APP_PROJECT_ID,
   storageBucket: process.env.REACT_APP_STORAGE_BUCKET,
   messagingSenderId: process.env.REACT_APP_MESSAGING_SENDER_ID,
+  appId: process.env.REACT_APP_APP_ID,
+  measurementId: process.env.REACT_APP_MEASUREMENT_ID
 };
 
 class Firebase {
@@ -48,13 +52,49 @@ class Firebase {
             admin: false,
           });
         }
+
+        Sentry.configureScope(scope => {
+            scope.setUser({
+                id: result.uid,
+                username: result.displayName,
+                email: result.email
+            });
+        })
+
+        LogRocket.identify(result.uid, {
+            name: result.displayName,
+            email: result.email,
+            phoneNumber: result.phoneNumber
+        });
+
+        this.analytics.setUserId(result.uid);
+        this.analytics.setUserProperties({
+            displayName: result.displayName,
+            email: result.email,
+            phoneNumber: result.phoneNumber
+        });
+
+        const send = this.analytics.logEvent;
+
+        LogRocket.getSessionURL(function(sessionURL){
+            send('send', {
+                hitType: 'event',
+                eventCategory: 'LogRocket',
+                eventAction: sessionURL
+            })
+        })
+
         return callback({
           ...result,
           id: result.uid,
           ...(await ref.get()).data(),
         });
       }
-      callback(result);
+      else {
+        Sentry.configureScope(scope => scope.setUser(null));
+        callback(result);
+
+      }
     });
   };
 
@@ -87,11 +127,18 @@ class Firebase {
   getData = (data) => ({ id: data.id, ...data.data() });
 
   getTeams = async () => {
-    const data = await this.firestore
-      .collection("teams")
-      .where("members", "array-contains", this.auth.currentUser.uid)
-      .get();
-    return data.docs.map(this.getData).sort(this.sortText("name"));
+    if((await this.firestore.collection('users').doc(this.auth.currentUser.uid).get()).data().admin){
+        const data = await this.firestore
+        .collection("teams")
+        .get();
+        return data.docs.map(this.getData).sort(this.sortText("name"));
+      } else {
+        const data = await this.firestore
+        .collection("teams")
+        .where("members", "array-contains", this.auth.currentUser.uid)
+        .get();
+        return data.docs.map(this.getData).sort(this.sortText("name"));
+      }
   };
 
   getTeam = async (teamID) => {
@@ -140,7 +187,7 @@ class Firebase {
       .map(this.getData)
       .filter(
         (e) => e.start.toDate() > DateTime.local().startOf("day").toJSDate()
-      )
+      ).sort((a, b) => a.start.toDate() - b.start.toDate())
       .slice(0, 5);
   };
 
@@ -211,6 +258,26 @@ class Firebase {
       throw new Error("Not authorized");
     }
   };
+  deleteSession = async (session) => {
+    if (
+      (await this.firestore.collection("teams").doc(session.team).get())
+        .data()
+        .captains.includes(this.auth.currentUser.uid) ||
+      (
+        await this.firestore
+          .collection("users")
+          .doc(this.auth.currentUser.uid)
+          .get()
+      ).data().admin
+    ) {
+      await this.firestore
+        .collection("sessions")
+        .doc(session.id)
+        .delete();
+    } else {
+      throw new Error("Not authorized");
+    }
+  };
 
   setAttending = async (sessionID, status) => {
     if (
@@ -239,6 +306,16 @@ class Firebase {
       throw new Error("Not a member of this team");
     }
   };
+
+  getMembersAttending = async (sessionID) => {
+      const session = (await this.firestore.collection('sessions').doc(sessionID).get()).data();
+    if((await this.firestore.collection('teams').doc(session.team).get()).data().captains.includes(this.auth.currentUser.uid) || (await this.firestore.collection('users').doc(this.auth.currentUser.uid).get()).data().admin){
+        const members = await this.firestore.collection('users').where(app.firestore.FieldPath.documentId(), 'in', session.attending).get();
+        return members.docs.map(this.getData);
+    } else {
+        throw new Error("Not a captain of this team / admin");
+    }
+  }
 }
 
 export const FirebaseContext = createContext();
