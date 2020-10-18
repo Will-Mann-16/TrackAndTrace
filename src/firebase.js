@@ -91,6 +91,7 @@ class Firebase {
         });
       }
       else {
+          LogRocket.identify(null);
         Sentry.configureScope(scope => scope.setUser(null));
         callback(result);
 

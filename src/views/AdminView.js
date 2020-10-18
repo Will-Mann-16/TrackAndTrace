@@ -36,7 +36,7 @@ export default function AdminView() {
   return (
     <Admin
       layout={(props) => <Layout {...props} appBar={() => null} />}
-      dataProvider={FirebaseDataProvider(config, {app: firebase.app, associateUsersById: true, metaFieldCasing: 'camel'})}
+      dataProvider={FirebaseDataProvider(config, {app: firebase.app, associateUsersById: true, metaFieldCasing: 'camel', logging: true})}
     >
       <Resource name='users' list={UserList} edit={EditUser} />
       <Resource

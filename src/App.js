@@ -12,6 +12,7 @@ import { Layout, Menu, Typography, Button, Drawer } from "antd";
 import { MenuOutlined } from '@ant-design/icons'
 import styled, { css } from "styled-components";
 import useMediaQuery from '@material-ui/core/useMediaQuery';
+import * as Sentry from '@sentry/react'
 
 import HomeView from "./views/HomeView";
 import AccountView from "./views/AccountView";
@@ -95,11 +96,21 @@ function App() {
   );
 }
 
+function NotFoundView(){
+  return (
+    <>
+    <Title type='danger'>404 - Page not found</Title>
+        <Title type='danger' level={3}>404 - Page not found</Title>
+        </>
+  )
+}
+
 function Container() {
   const user = useUser();
   const location = useLocation();
 
   return (
+    <Sentry.ErrorBoundary fallback="An error has occursed">
     <Main center={!user} fullWidth={location.pathname === "/admin"}>
       {!!user ? (
         <Switch>
@@ -109,12 +120,13 @@ function Container() {
           <Route path='/teams/:teamId' component={TeamView} />
           <Route path='/account' component={AccountView} />
           {user.admin && <Route path='/admin' component={AdminView} />}
-          <Route />
+          <Route component={NotFoundView} />
         </Switch>
       ) : (
         <PhoneAuth />
       )}
     </Main>
+    </Sentry.ErrorBoundary>
   );
 }
 
