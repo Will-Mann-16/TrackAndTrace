@@ -12,6 +12,7 @@
     "firebase": "^7.22.1",
     "firebaseui": "^4.6.1",
     "google-libphonenumber": "^3.2.13",
+    "lodash": "^4.17.20",
     "logrocket": "^1.0.14",
     "logrocket-react": "^4.0.1",
     "luxon": "^1.25.0",

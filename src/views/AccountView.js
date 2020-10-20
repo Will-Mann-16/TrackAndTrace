@@ -10,7 +10,7 @@ export default function AccountView() {
   const firebase = useFirebase();
   const [reauth, setReauth] = useState(false);
   const [finished, setFinished] = useState(true);
-  const firstTime = useMemo(() => !!user.displayName, []);
+  const firstTime = useMemo(() => !user.displayName, []);
 
   const history = useHistory();
 

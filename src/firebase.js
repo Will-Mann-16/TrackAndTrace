@@ -7,6 +7,7 @@ import * as firebaseUI from "firebaseui";
 import { DateTime } from "luxon";
 import LogRocket from "logrocket";
 import * as Sentry from "@sentry/react";
+import { chunk, flatten} from 'lodash';
 
 export const config = {
   apiKey: process.env.REACT_APP_API_KEY,
@@ -139,6 +140,16 @@ class Firebase {
 
   getData = (data) => ({ id: data.id, ...data.data() });
 
+  splitTo = async (data, callback, chunkSize=10) => {
+    let split = chunk(data, chunkSize);
+
+    const results = await Promise.all(split.map(async values => {
+      return await callback(values);
+    }));
+
+    return flatten(results);
+  }
+
   teamsListener = async (callback) => {
     if (!this.auth.currentUser?.uid) return () => {};
     if (
@@ -153,32 +164,32 @@ class Firebase {
       return data.onSnapshot(callback);
     } else {
       const data = this.firestore
-        .collection("teams")
-        .where("members", "array-contains", this.auth.currentUser.uid);
+      .collection("teams")
+      .where("members", "array-contains", this.auth.currentUser.uid);
       return data.onSnapshot(callback);
     }
   };
 
   populateTeam = async (team) => {
     const captains = !!team.captains
-      ? (
-          await this.firestore
+      ? await this.splitTo(team.captains, async val =>
+          (await this.firestore
             .collection("users")
-            .where(app.firestore.FieldPath.documentId(), "in", team.captains)
+            .where(app.firestore.FieldPath.documentId(), "in", val)
             .get()
         ).docs
           .map(this.getData)
-          .sort(this.sortText("name"))
+          .sort(this.sortText("name")))
       : [];
     const members = !!team.members
-      ? (
-          await this.firestore
+      ? await this.splitTo(team.members, async val =>
+          (await this.firestore
             .collection("users")
-            .where(app.firestore.FieldPath.documentId(), "in", team.members)
+            .where(app.firestore.FieldPath.documentId(), "in", val)
             .get()
         ).docs
           .map(this.getData)
-          .sort(this.sortText("name"))
+          .sort(this.sortText("name")))
       : [];
 
     return { ...team, captains, members };
@@ -338,11 +349,11 @@ class Firebase {
           .get()
       ).data().admin
     ) {
-      const members = await this.firestore
+      const members = await this.splitTo(session.attending, async val => (await this.firestore
         .collection("users")
-        .where(app.firestore.FieldPath.documentId(), "in", session.attending)
-        .get();
-      return members.docs.map(this.getData);
+        .where(app.firestore.FieldPath.documentId(), "in", val)
+        .get()).docs.map(this.getData));
+        return members;
     } else {
       throw new Error("Not a captain of this team / admin");
     }
@@ -395,6 +406,7 @@ function TeamProvider({ children }) {
           );
           setVariables({ loading: false, error: null, data });
         } catch (e) {
+          console.error(e);
           setVariables({ loading: false, error: e, data: [] });
         }
       },
