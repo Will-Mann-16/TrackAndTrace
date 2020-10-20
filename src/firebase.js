@@ -5,8 +5,8 @@ import "firebase/firestore";
 import "firebase/analytics";
 import * as firebaseUI from "firebaseui";
 import { DateTime } from "luxon";
-import LogRocket from 'logrocket';
-import * as Sentry from '@sentry/react'
+import LogRocket from "logrocket";
+import * as Sentry from "@sentry/react";
 
 export const config = {
   apiKey: process.env.REACT_APP_API_KEY,
@@ -16,7 +16,7 @@ export const config = {
   storageBucket: process.env.REACT_APP_STORAGE_BUCKET,
   messagingSenderId: process.env.REACT_APP_MESSAGING_SENDER_ID,
   appId: process.env.REACT_APP_APP_ID,
-  measurementId: process.env.REACT_APP_MEASUREMENT_ID
+  measurementId: process.env.REACT_APP_MEASUREMENT_ID,
 };
 
 class Firebase {
@@ -33,17 +33,28 @@ class Firebase {
   onAuthStateChanged = (callback) => {
     this.auth.onAuthStateChanged(async (result) => {
       if (result) {
-        const ref = this.firestore.collection("users").doc(result.uid);
-        if ((await ref.get()).exists) {
-          await ref.update({
-            displayName: result.displayName,
-            email: result.email,
-            emailVerified: result.emailVerified,
-            photoURL: result.photoURL,
-            phoneNumber: result.phoneNumber,
-          });
+        const ref = await this.firestore
+          .collection("users")
+          .doc(result.uid)
+          .get();
+        if (ref.exists) {
+          const data = ref.data();
+          if (!data.displayName || (!!result.displayName && data.displayName !== result.displayName)) {
+            await this.firestore.collection("users").doc(result.uid).update({
+              displayName: result.displayName,
+              email: result.email,
+              emailVerified: result.emailVerified,
+              photoURL: result.photoURL,
+              phoneNumber: result.phoneNumber,
+            });
+          } else if (!result.displayName) {
+            await this.auth.currentUser.updateEmail(data.email);
+            await this.auth.currentUser.updateProfile({
+              displayName: data.displayName,
+            });
+          }
         } else {
-          await ref.set({
+          await this.firestore.collection("users").doc(result.uid).set({
             displayName: result.displayName,
             email: result.email,
             emailVerified: result.emailVerified,
@@ -53,48 +64,46 @@ class Firebase {
           });
         }
 
-        Sentry.configureScope(scope => {
-            scope.setUser({
-                id: result.uid,
-                username: result.displayName,
-                email: result.email
-            });
-        })
+        Sentry.configureScope((scope) => {
+          scope.setUser({
+            id: result.uid,
+            username: result.displayName,
+            email: result.email,
+          });
+        });
 
         LogRocket.identify(result.uid, {
-            name: result.displayName,
-            email: result.email,
-            phoneNumber: result.phoneNumber
+          name: result.displayName,
+          email: result.email,
+          phoneNumber: result.phoneNumber,
         });
 
         this.analytics.setUserId(result.uid);
         this.analytics.setUserProperties({
-            displayName: result.displayName,
-            email: result.email,
-            phoneNumber: result.phoneNumber
+          displayName: result.displayName,
+          email: result.email,
+          phoneNumber: result.phoneNumber,
         });
 
         const send = this.analytics.logEvent;
 
-        LogRocket.getSessionURL(function(sessionURL){
-            send('send', {
-                hitType: 'event',
-                eventCategory: 'LogRocket',
-                eventAction: sessionURL
-            })
-        })
+        LogRocket.getSessionURL(function (sessionURL) {
+          send("send", {
+            hitType: "event",
+            eventCategory: "LogRocket",
+            eventAction: sessionURL,
+          });
+        });
 
         return callback({
           ...result,
           id: result.uid,
-          ...(await ref.get()).data(),
+          ...ref.data(),
         });
-      }
-      else {
-          LogRocket.identify(null);
-        Sentry.configureScope(scope => scope.setUser(null));
+      } else {
+        LogRocket.identify(null);
+        Sentry.configureScope((scope) => scope.setUser(null));
         callback(result);
-
       }
     });
   };
@@ -102,15 +111,18 @@ class Firebase {
   updateUser = async ({ email, phoneNumber, displayName }) => {
     const current = this.auth.currentUser;
 
-    await current.updateEmail(email);
+    await current.updateEmail(email.replace(/^\s+|\s+$/gm, "").toLowerCase());
     // await current.updatePhoneNumber(phoneNumber);
     await current.updateProfile({ displayName });
 
-    await this.firestore.collection("users").doc(current.uid).update({
-      email,
-      phoneNumber,
-      displayName,
-    });
+    await this.firestore
+      .collection("users")
+      .doc(current.uid)
+      .update({
+        email: email.replace(/^\s+|\s+$/gm, "").toLowerCase(),
+        phoneNumber,
+        displayName,
+      });
 
     return current;
   };
@@ -127,69 +139,78 @@ class Firebase {
 
   getData = (data) => ({ id: data.id, ...data.data() });
 
-  getTeams = async () => {
-    if((await this.firestore.collection('users').doc(this.auth.currentUser.uid).get()).data().admin){
-        const data = await this.firestore
+  teamsListener = async (callback) => {
+    if (!this.auth.currentUser?.uid) return () => {};
+    if (
+      (
+        await this.firestore
+          .collection("users")
+          .doc(this.auth.currentUser.uid)
+          .get()
+      ).data().admin
+    ) {
+      const data = this.firestore.collection("teams");
+      return data.onSnapshot(callback);
+    } else {
+      const data = this.firestore
         .collection("teams")
-        .get();
-        return data.docs.map(this.getData).sort(this.sortText("name"));
-      } else {
-        const data = await this.firestore
-        .collection("teams")
-        .where("members", "array-contains", this.auth.currentUser.uid)
-        .get();
-        return data.docs.map(this.getData).sort(this.sortText("name"));
-      }
+        .where("members", "array-contains", this.auth.currentUser.uid);
+      return data.onSnapshot(callback);
+    }
   };
 
-  getTeam = async (teamID) => {
-    const data = await this.firestore.collection("teams").doc(teamID).get();
-    const team = this.getData(data);
-    team.captains = (
-      await this.firestore
-        .collection("users")
-        .where(app.firestore.FieldPath.documentId(), "in", team.captains)
-        .get()
-    ).docs
-      .map(this.getData)
-      .sort(this.sortText("name"));
-    team.members = (
-      await this.firestore
-        .collection("users")
-        .where(app.firestore.FieldPath.documentId(), "in", team.members)
-        .get()
-    ).docs
-      .map(this.getData)
-      .sort(this.sortText("name"));
-    team.sessions = (
-      await this.firestore
-        .collection("sessions")
-        .where("team", "==", teamID)
-        .get()
-    ).docs
-      .map(this.getData)
-      .sort(this.sortNumbers("start"));
+  populateTeam = async (team) => {
+    const captains = !!team.captains
+      ? (
+          await this.firestore
+            .collection("users")
+            .where(app.firestore.FieldPath.documentId(), "in", team.captains)
+            .get()
+        ).docs
+          .map(this.getData)
+          .sort(this.sortText("name"))
+      : [];
+    const members = !!team.members
+      ? (
+          await this.firestore
+            .collection("users")
+            .where(app.firestore.FieldPath.documentId(), "in", team.members)
+            .get()
+        ).docs
+          .map(this.getData)
+          .sort(this.sortText("name"))
+      : [];
 
-    return team;
+    return { ...team, captains, members };
   };
 
-  getFutureSessions = async () => {
-    const teams = (
-      await this.firestore
-        .collection("teams")
-        .where("members", "array-contains", this.auth.currentUser.uid)
-        .get()
-    ).docs.map((e) => e.id);
-    const data = await this.firestore
+  sessionsListener = async (callback) => {
+    if (!this.auth.currentUser?.uid) return () => {};
+    let teams = [];
+    if (
+      (
+        await this.firestore
+          .collection("users")
+          .doc(this.auth.currentUser.uid)
+          .get()
+      ).data().admin
+    ) {
+      teams = (await this.firestore.collection("teams").get()).docs.map(
+        (e) => e.id
+      );
+    } else {
+      teams = (
+        await this.firestore
+          .collection("teams")
+          .where("members", "array-contains", this.auth.currentUser.uid)
+          .get()
+      ).docs.map((e) => e.id);
+    }
+    if (teams.length === 0) return () => {};
+    return this.firestore
       .collection("sessions")
       .where("team", "in", teams)
-      .get();
-    return data.docs
-      .map(this.getData)
-      .filter(
-        (e) => e.start.toDate() > DateTime.local().startOf("day").toJSDate()
-      ).sort((a, b) => a.start.toDate() - b.start.toDate())
-      .slice(0, 5);
+      .onSnapshot(callback);
   };
 
   updateTeam = async (teamID, team) => {
@@ -205,7 +226,6 @@ class Firebase {
       ).data().admin
     ) {
       await this.firestore.collection("teams").doc(teamID).update(team);
-      return await this.getTeam(teamID);
     } else {
       throw new Error("Not authorized");
     }
@@ -232,7 +252,6 @@ class Firebase {
       await this.firestore
         .collection("sessions")
         .add({ ...session, attending: [] });
-      return await this.getTeam(session.team);
     } else {
       throw new Error("Not authorized");
     }
@@ -254,7 +273,6 @@ class Firebase {
         .collection("sessions")
         .doc(sessionID)
         .update(session);
-      return await this.getTeam(session.team);
     } else {
       throw new Error("Not authorized");
     }
@@ -271,10 +289,7 @@ class Firebase {
           .get()
       ).data().admin
     ) {
-      await this.firestore
-        .collection("sessions")
-        .doc(session.id)
-        .delete();
+      await this.firestore.collection("sessions").doc(session.id).delete();
     } else {
       throw new Error("Not authorized");
     }
@@ -309,14 +324,29 @@ class Firebase {
   };
 
   getMembersAttending = async (sessionID) => {
-      const session = (await this.firestore.collection('sessions').doc(sessionID).get()).data();
-    if((await this.firestore.collection('teams').doc(session.team).get()).data().captains.includes(this.auth.currentUser.uid) || (await this.firestore.collection('users').doc(this.auth.currentUser.uid).get()).data().admin){
-        const members = await this.firestore.collection('users').where(app.firestore.FieldPath.documentId(), 'in', session.attending).get();
-        return members.docs.map(this.getData);
+    const session = (
+      await this.firestore.collection("sessions").doc(sessionID).get()
+    ).data();
+    if (
+      (await this.firestore.collection("teams").doc(session.team).get())
+        .data()
+        .captains.includes(this.auth.currentUser.uid) ||
+      (
+        await this.firestore
+          .collection("users")
+          .doc(this.auth.currentUser.uid)
+          .get()
+      ).data().admin
+    ) {
+      const members = await this.firestore
+        .collection("users")
+        .where(app.firestore.FieldPath.documentId(), "in", session.attending)
+        .get();
+      return members.docs.map(this.getData);
     } else {
-        throw new Error("Not a captain of this team / admin");
+      throw new Error("Not a captain of this team / admin");
     }
-  }
+  };
 }
 
 export const FirebaseContext = createContext();
@@ -353,16 +383,27 @@ function TeamProvider({ children }) {
   const user = useContext(UserContext);
 
   useEffect(() => {
-    const getData = async () => {
-      try {
-        setVariables((e) => ({ ...e, loading: true }));
-        const data = await firebase.getTeams();
-        setVariables({ loading: false, error: null, data });
-      } catch (e) {
-        setVariables({ loading: false, error: e, data: [] });
-      }
+    const unsub = firebase.teamsListener(
+      async (snapshot) => {
+        try {
+          setVariables((e) => ({ ...e, loading: true }));
+          const data = await Promise.all(
+            snapshot.docs
+              .map(firebase.getData)
+              .sort(firebase.sortText("name"))
+              .map(async (team) => await firebase.populateTeam(team))
+          );
+          setVariables({ loading: false, error: null, data });
+        } catch (e) {
+          setVariables({ loading: false, error: e, data: [] });
+        }
+      },
+      (e) => setVariables({ loading: false, error: e, data: [] })
+    );
+
+    return () => {
+      if (typeof unsub === "function") unsub();
     };
-    getData();
   }, [user]);
 
   return (
@@ -382,16 +423,22 @@ function SessionProvider({ children }) {
   const user = useContext(UserContext);
 
   useEffect(() => {
-    const getData = async () => {
-      try {
-        setVariables((e) => ({ ...e, loading: true }));
-        const data = await firebase.getFutureSessions();
-        setVariables({ loading: false, error: null, data });
-      } catch (e) {
-        setVariables({ loading: false, error: e, data: [] });
-      }
+    const unsub = firebase.sessionsListener(
+      async (snapshot) => {
+        try {
+          setVariables((e) => ({ ...e, loading: true }));
+          const data = await Promise.all(snapshot.docs.map(firebase.getData));
+          setVariables({ loading: false, error: null, data });
+        } catch (e) {
+          setVariables({ loading: false, error: e, data: [] });
+        }
+      },
+      (e) => setVariables({ loading: false, error: e, data: [] })
+    );
+
+    return () => {
+      if (typeof unsub === "function") unsub();
     };
-    getData();
   }, [user]);
 
   return (

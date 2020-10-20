@@ -18,8 +18,8 @@ const COVID_OFFICERS = [
 export default function HomeView() {
   const user = useUser();
   const firebase = useFirebase();
-  const { data: teams } = useTeams();
-  const { data: sessions, setData } = useSessions();
+  const { loading: loadingTeams, data: teams } = useTeams();
+  const { loading: loadingSessions, data: sessions } = useSessions();
   return (
     <>
       <Title style={{ textAlign: "center" }}>
@@ -29,28 +29,22 @@ export default function HomeView() {
         <Col md={12} xs={24}>
           <Card title='Upcoming sessions'>
             <List
-              dataSource={sessions}
+              dataSource={sessions.filter(
+                (e) => e.start.toDate() > DateTime.local().startOf("day").toJSDate()
+              )
+              .sort((a, b) => a.start.toDate() - b.start.toDate())
+              .slice(0, 5)}
               itemLayout='vertical'
+              loading={loadingSessions}
               renderItem={(session) => (
                 <List.Item
                   key={session.id}
                   extra={
-                    session.attending.find((e) => e === user.id) ? (
+                    session.attending.some((e) => e === user.id) ? (
                       <Button
                         type='primary'
                         onClick={async () => {
                           await firebase.setAttending(session.id, false);
-                          setData((sessions) => {
-                            sessions = { ...sessions };
-                            let index = sessions.findIndex(
-                              (e) => e.id === session.id
-                            );
-                            sessions[index].attending.splice(
-                              sessions[index].attending.indexOf(user.id),
-                              1
-                            );
-                            return sessions;
-                          });
                         }}
                       >
                         Attending
@@ -59,14 +53,6 @@ export default function HomeView() {
                       <Button
                         onClick={async () => {
                           await firebase.setAttending(session.id, true);
-                          setData((sessions) => {
-                            sessions = { ...sessions };
-                            let index = sessions.findIndex(
-                              (e) => e.id === session.id
-                            );
-                            sessions[index].attending.push(user.id);
-                            return sessions;
-                          });
                         }}
                       >
                         Not attending
@@ -100,6 +86,7 @@ export default function HomeView() {
             <List
               itemLayout='horizontal'
               dataSource={teams}
+              loading={loadingTeams}
               renderItem={(item) => (
                 <List.Item>
                   <List.Item.Meta

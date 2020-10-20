@@ -76,7 +76,7 @@ function App() {
             level={3}
             style={{ flex: 10, textAlign: "center", color: "white", marginBottom: 0 }}
           >
-            Track & Trace
+            Sport Track & Trace
           </Title>
           <div style={{flex: 1}} />
         </Topbar>
@@ -113,8 +113,8 @@ function Container() {
     <Sentry.ErrorBoundary fallback="An error has occursed">
     <Main center={!user} fullWidth={location.pathname === "/admin"}>
       {!!user ? (
+        <>
         <Switch>
-          {!user.displayName && <Redirect to='/accounts' />}
           <Route path='/' exact component={HomeView} />
           <Route path='/teams' exact component={TeamsView} />
           <Route path='/teams/:teamId' component={TeamView} />
@@ -122,6 +122,8 @@ function Container() {
           {user.admin && <Route path='/admin' component={AdminView} />}
           <Route component={NotFoundView} />
         </Switch>
+        {!user.displayName && <Redirect to='/account' />}
+        </>
       ) : (
         <PhoneAuth />
       )}

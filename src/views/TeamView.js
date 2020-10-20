@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useParams } from "react-router-dom";
-import { useUser, useFirebase } from "../firebase";
+import { useUser, useFirebase, useTeams, useSessions } from "../firebase";
 import {
   EditOutlined,
   PlusOutlined,
   UsergroupAddOutlined,
+  DeleteOutlined,
 } from "@ant-design/icons";
 import {
   Card as C,
@@ -18,16 +19,15 @@ import {
   Button,
   Select,
   DatePicker,
-  Space
+  Popconfirm,
 } from "antd";
 import { DateTime } from "luxon";
-import moment from 'moment';
-import styled from 'styled-components'
+import moment from "moment";
+import styled from "styled-components";
 
 const Card = styled(C)`
   height: 100%;
 `;
-
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -42,25 +42,17 @@ export default function TeamView() {
   const firebase = useFirebase();
   const user = useUser();
   const { teamId } = useParams();
+  const { data: teams, loading: loadingTeams } = useTeams();
+  const { data: sessions, loading: loadingSessions } = useSessions();
 
-  const [team, setData] = useState({});
+  const team = useMemo(() => {
+    return teams.find((e) => e.id === teamId) ?? {};
+  }, [teams, teamId]);
   const [error, setError] = useState();
   const [edit, setEdit] = useState(false);
   const [members, setMembers] = useState(false);
   const [addSession, setAddSession] = useState(false);
   const [attendingMembers, setAttendingMembers] = useState(undefined);
-
-  useEffect(() => {
-    const getData = async () => {
-      try {
-        if (!!teamId) setData(await firebase.getTeam(teamId));
-      } catch (e) {
-        setError(e);
-      }
-    };
-
-    getData();
-  }, []);
 
   if (!!error)
     return (
@@ -87,7 +79,7 @@ export default function TeamView() {
         {team.bio}
       </Card>
       <Row style={{ paddingTop: 16 }} gutter={[16, 16]}>
-        <Col span={12}>
+        <Col md={12} xs={24}>
           <Card title='Captains'>
             <List
               itemLayout='horizontal'
@@ -111,7 +103,7 @@ export default function TeamView() {
             />
           </Card>
         </Col>
-        <Col span={12}>
+        <Col md={12} xs={24}>
           <Card
             title='Members'
             extra={
@@ -149,35 +141,71 @@ export default function TeamView() {
         }
       >
         <List
-          dataSource={team.sessions}
+          dataSource={sessions
+            .filter((e) => e.team === teamId)
+            .sort((a, b) => {
+              if (
+                DateTime.local().startOf("day").toJSDate() > a.start.toDate() &&
+                DateTime.local().startOf("day").toJSDate() <= b.start.toDate()
+              )
+                return 1;
+              else if (
+                DateTime.local().startOf("day").toJSDate() > a.start.toDate() &&
+                DateTime.local().startOf("day").toJSDate() > b.start.toDate()
+              )
+                return b.start.toDate() - a.start.toDate();
+              return a.start.toDate() - b.start.toDate();
+            })}
+          loading={loadingSessions}
           itemLayout='vertical'
           renderItem={(session) => (
             <List.Item
+              style={{
+                opacity:
+                  DateTime.local().startOf("day").toJSDate() >
+                  session.start.toDate()
+                    ? 0.6
+                    : 1,
+              }}
               key={session.id}
               actions={
                 (team.captains?.find((e) => e.id === user.id) ||
                   user.admin) && [
-                  <IconText text='Edit' icon={EditOutlined} onClick={() => setAddSession(session)} type='text' key='edit' />,
-                  <IconText text="Attending" icon={UsergroupAddOutlined} onClick={() => setAttendingMembers(session.id)} type='text' key='attending'/>
+                  <IconText
+                    text='Edit'
+                    icon={EditOutlined}
+                    onClick={() => setAddSession(session)}
+                    type='text'
+                    key='edit'
+                  />,
+                  <IconText
+                    text='Attending'
+                    icon={UsergroupAddOutlined}
+                    onClick={() => setAttendingMembers(session.id)}
+                    type='text'
+                    key='attending'
+                  />,
+                  <Popconfirm
+                    title='Are you sure you want to delete this session?'
+                    okText='Yes'
+                    cancelText='No'
+                    key='delete'
+                    onConfirm={() => firebase.deleteSession(session)}
+                  >
+                    <IconText text='Delete' type='text' icon={DeleteOutlined} />
+                  </Popconfirm>,
                 ]
               }
               extra={
-                session.attending.find(e=> e === user.id) ? (
+                session.attending.find((e) => e === user.id) ? (
                   <Button
                     type='primary'
+                    disabled={
+                      DateTime.local().startOf("day").toJSDate() >
+                      session.start.toDate()
+                    }
                     onClick={async () => {
                       await firebase.setAttending(session.id, false);
-                      setData((team) => {
-                        team = { ...team };
-                        let index = team.sessions.findIndex(
-                          (e) => e.id === session.id
-                        );
-                        team.sessions[index].attending.splice(
-                          team.sessions[index].attending.indexOf(user.id),
-                          1
-                        );
-                        return team;
-                      });
                     }}
                   >
                     Attending
@@ -186,14 +214,6 @@ export default function TeamView() {
                   <Button
                     onClick={async () => {
                       await firebase.setAttending(session.id, true);
-                      setData((team) => {
-                        team = { ...team };
-                        let index = team.sessions.findIndex(
-                          (e) => e.id === session.id
-                        );
-                        team.sessions[index].attending.push(user.id);
-                        return team;
-                      });
                     }}
                   >
                     Not attending
@@ -217,7 +237,6 @@ export default function TeamView() {
                 )}`}
               />
               {session.description}
-              
             </List.Item>
           )}
         />
@@ -228,25 +247,33 @@ export default function TeamView() {
             visible={edit}
             team={team}
             toggle={() => setEdit((e) => !e)}
-            setTeam={setData}
           />
           <AssignMembers
             visible={members}
             team={team}
             toggle={() => setMembers((e) => !e)}
-            setTeam={setData}
           />
           <EditSession
             visible={!!addSession}
             team={team}
             session={addSession}
             toggle={() => setAddSession(undefined)}
-            setTeam={setData}
           />
-          <Modal title="Attending Members" visible={!!attendingMembers} cancelText="Close" footer={[
-              <Button key='close' onClick={() => setAttendingMembers(undefined)}>Close</Button>
-          ]} onCancel={() => setAttendingMembers(undefined)}>
-            <AttendingMembers session={attendingMembers}/>
+          <Modal
+            title='Attending Members'
+            visible={!!attendingMembers}
+            cancelText='Close'
+            footer={[
+              <Button
+                key='close'
+                onClick={() => setAttendingMembers(undefined)}
+              >
+                Close
+              </Button>,
+            ]}
+            onCancel={() => setAttendingMembers(undefined)}
+          >
+            <AttendingMembers session={attendingMembers} />
           </Modal>
         </>
       )}
@@ -254,21 +281,30 @@ export default function TeamView() {
   );
 }
 
-function EditSession({
-  visible,
-  toggle,
-  team: { id, ...team },
-  session,
-  setTeam,
-}) {
+function EditSession({ visible, toggle, team: { id, ...team }, session }) {
   const [form] = Form.useForm();
   const firebase = useFirebase();
+
+  useEffect(() => {
+    if (!session?.id) {
+      form.resetFields();
+    } else {
+      form.setFieldsValue({
+        ...session,
+        range: [moment(session.start.toDate()), moment(session.end.toDate())],
+      });
+    }
+  }, [session]);
+
   return (
     <Modal
       visible={visible}
       okText='Submit'
       cancelText='Cancel'
-      onCancel={toggle}
+      onCancel={() => {
+        form.resetFields();
+        toggle();
+      }}
       onOk={() => {
         form
           .validateFields()
@@ -288,30 +324,22 @@ function EditSession({
                 })
           )
           .then((res) => {
-            setTeam(res);
             form.resetFields();
             toggle();
           });
       }}
     >
-      <Form
-        form={form}
-        layout='vertical'
-        name='edit-session'
-        initialValues={
-          session?.id && { ...session, range: [moment(session.start.toDate()), moment(session.end.toDate())] }
-        }
-      >
+      <Form form={form} layout='vertical' name='edit-session'>
         <Form.Item
           name='range'
           label='Start Time / End Time'
-        //   rules={[
-        //     {
-        //       required: true,
-        //       array: true,
-        //       message: "Start / End time required",
-        //     },
-        //   ]}
+          //   rules={[
+          //     {
+          //       required: true,
+          //       array: true,
+          //       message: "Start / End time required",
+          //     },
+          //   ]}
         >
           <RangePicker showTime format='YYYY-MM-DD HH:mm:ss' />
         </Form.Item>
@@ -336,7 +364,7 @@ function EditSession({
   );
 }
 
-function EditTeam({ visible, toggle, team: { id, ...values }, setTeam }) {
+function EditTeam({ visible, toggle, team: { id, ...values } }) {
   const [form] = Form.useForm();
   const firebase = useFirebase();
   return (
@@ -351,7 +379,6 @@ function EditTeam({ visible, toggle, team: { id, ...values }, setTeam }) {
           .validateFields()
           .then((values) => firebase.updateTeam(id, values))
           .then((res) => {
-            setTeam(res);
             form.resetFields();
             toggle();
           });
@@ -384,7 +411,7 @@ function EditTeam({ visible, toggle, team: { id, ...values }, setTeam }) {
 
 const { Option } = Select;
 
-function AssignMembers({ visible, toggle, team: { id, ...values }, setTeam }) {
+function AssignMembers({ visible, toggle, team: { id, ...values } }) {
   const [form] = Form.useForm();
   const firebase = useFirebase();
   const [userList, setUsers] = useState([]);
@@ -412,7 +439,6 @@ function AssignMembers({ visible, toggle, team: { id, ...values }, setTeam }) {
           .validateFields()
           .then((values) => firebase.updateTeam(id, values))
           .then((res) => {
-            setTeam(res);
             form.resetFields();
             toggle();
           });
@@ -448,26 +474,32 @@ function AssignMembers({ visible, toggle, team: { id, ...values }, setTeam }) {
   );
 }
 
+function AttendingMembers({ session }) {
+  const firebase = useFirebase();
+  const [members, setMembers] = useState([]);
 
-function AttendingMembers({ session }){
-    const firebase = useFirebase();
-    const [members, setMembers] = useState([]);
+  useEffect(() => {
+    const getData = async () => {
+      try {
+        setMembers(await firebase.getMembersAttending(session));
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    getData();
+  }, []);
 
-    useEffect(() => {
-        const getData = async () => {
-            try{
-                setMembers(await firebase.getMembersAttending(session));
-            }catch(e){
-                console.error(e);
-            }
-        }
-        getData();
-    }, []);
-
-    return (
-        <List dataSource={members} renderItem={member => <List.Item key={member.id}>
-            <List.Item.Meta title={member.displayName} description={member.phoneNumber} />
-        </List.Item>} />
-    )
-
+  return (
+    <List
+      dataSource={members}
+      renderItem={(member) => (
+        <List.Item key={member.id}>
+          <List.Item.Meta
+            title={member.displayName}
+            description={member.phoneNumber}
+          />
+        </List.Item>
+      )}
+    />
+  );
 }
