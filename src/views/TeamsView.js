@@ -27,9 +27,7 @@ export default function TeamsView() {
 
   return (
     <>
-        <Title>
-            Your teams
-        </Title>
+      <Title>Your teams</Title>
       <Row gutter={[16, 16]}>
         {teams.map((team) => (
           <Col key={team.id} md={12} xs={24}>

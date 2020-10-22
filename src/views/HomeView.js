@@ -4,6 +4,7 @@ import { useFirebase, useTeams, useSessions, useUser } from "../firebase";
 import { Link } from "react-router-dom";
 import { DateTime } from "luxon";
 import styled from "styled-components";
+import { CheckOutlined, CloseOutlined } from '@ant-design/icons';
 
 const Card = styled(C)`
   height: 100%;
@@ -27,53 +28,60 @@ export default function HomeView() {
       </Title>
       <Row gutter={[8, 8]}>
         <Col md={12} xs={24}>
-          <Card title='Upcoming sessions'>
+          <Card title='Upcoming sessions' loading={loadingSessions}>
             <List
-              dataSource={sessions.filter(
-                (e) => e.start.toDate() > DateTime.local().startOf("day").toJSDate()
-              )
-              .sort((a, b) => a.start.toDate() - b.start.toDate())
-              .slice(0, 5)}
+              dataSource={sessions
+                .filter(
+                  (e) =>
+                    e.start.toDate() >
+                    DateTime.local().startOf("day").toJSDate()
+                )
+                .sort((a, b) => a.start.toDate() - b.start.toDate())
+                .slice(0, 5)}
               itemLayout='vertical'
+              pagination={{ pageSize: 5 }}
               loading={loadingSessions}
               renderItem={(session) => (
                 <List.Item
                   key={session.id}
                   extra={
-                    session.attending.some((e) => e === user.id) ? (
                       <Button
-                        type='primary'
+                        type={!session.attending.some((e) => e === user.id) ? 'primary' : 'default'}
+                        icon={!session.attending.some((e) => e === user.id) ? <CheckOutlined/> : <CloseOutlined />}
+                        disabled={
+                          DateTime.local().startOf("day").toJSDate() >
+                            session.start.toDate() ||
+                          !teams
+                            .find((e) => e.id === session.team)
+                            ?.members?.some((e) => e.id === user.id)
+                        }
                         onClick={async () => {
-                          await firebase.setAttending(session.id, false);
+                          await firebase.setAttending(session.id, !session.attending.some((e) => e === user.id));
                         }}
                       >
                         Attending
                       </Button>
-                    ) : (
-                      <Button
-                        onClick={async () => {
-                          await firebase.setAttending(session.id, true);
-                        }}
-                      >
-                        Not attending
-                      </Button>
-                    )
                   }
                 >
                   <List.Item.Meta
-                    title={session.name}
-                    description={`${DateTime.fromJSDate(
-                      session.start.toDate()
-                    ).toFormat("ccc dd LLL T")} - ${DateTime.fromJSDate(
-                      session.end.toDate()
-                    ).toFormat(
-                      DateTime.fromJSDate(session.start.toDate()).hasSame(
-                        DateTime.fromJSDate(session.end.toDate()),
-                        "day"
-                      )
-                        ? "T"
-                        : "ccc dd LLL T"
-                    )}`}
+                    title={<Link to={`/teams/${session.team}`}>{session.name}</Link>}
+                    description={
+                      <span>
+                        {DateTime.fromJSDate(session.start.toDate()).toFormat(
+                          "ccc dd LLL T"
+                        )}{" "}
+                        -{" "}
+                        {DateTime.fromJSDate(session.end.toDate()).toFormat(
+                          DateTime.fromJSDate(session.start.toDate()).hasSame(
+                            DateTime.fromJSDate(session.end.toDate()),
+                            "day"
+                          )
+                            ? "T"
+                            : "ccc dd LLL T"
+                        )}{" "}
+                        @ <strong>{session.location}</strong>
+                      </span>
+                    }
                   />
                   {session.description}
                 </List.Item>
@@ -82,11 +90,12 @@ export default function HomeView() {
           </Card>{" "}
         </Col>
         <Col md={12} xs={24}>
-          <Card title='Your teams'>
+          <Card title='Your teams' loading={loadingTeams}>
             <List
               itemLayout='horizontal'
               dataSource={teams}
               loading={loadingTeams}
+              pagination={{ pageSize: 3 }}
               renderItem={(item) => (
                 <List.Item>
                   <List.Item.Meta

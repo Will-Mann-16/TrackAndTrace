@@ -6,6 +6,9 @@ import {
   PlusOutlined,
   UsergroupAddOutlined,
   DeleteOutlined,
+  DownloadOutlined,
+  CheckOutlined,
+  CloseOutlined
 } from "@ant-design/icons";
 import {
   Card as C,
@@ -20,10 +23,13 @@ import {
   Select,
   DatePicker,
   Popconfirm,
+  notification,
 } from "antd";
 import { DateTime } from "luxon";
 import moment from "moment";
 import styled from "styled-components";
+import { sortBy } from "lodash";
+import { saveAs } from 'file-saver';
 
 const Card = styled(C)`
   height: 100%;
@@ -66,6 +72,7 @@ export default function TeamView() {
     <>
       <Card
         title={team.name}
+        loading={loadingTeams}
         extra={
           (team.captains?.find((e) => e.id === user.id) || user.admin) && (
             <IconText
@@ -80,8 +87,9 @@ export default function TeamView() {
       </Card>
       <Row style={{ paddingTop: 16 }} gutter={[16, 16]}>
         <Col md={12} xs={24}>
-          <Card title='Captains'>
+          <Card title='Captains' loading={loadingTeams}>
             <List
+              loading={loadingTeams}
               itemLayout='horizontal'
               renderItem={(captain) => (
                 <List.Item key={captain.id}>
@@ -99,12 +107,13 @@ export default function TeamView() {
                   />
                 </List.Item>
               )}
-              dataSource={team.captains}
+              dataSource={sortBy(team.captains, ["displayName"])}
             />
           </Card>
         </Col>
         <Col md={12} xs={24}>
           <Card
+            loading={loadingTeams}
             title='Members'
             extra={
               (team.captains?.find((e) => e.id === user.id) || user.admin) && (
@@ -117,19 +126,22 @@ export default function TeamView() {
             }
           >
             <List
+              loading={loadingTeams}
               itemLayout='horizontal'
+              pagination={{ pageSize: 5 }}
               renderItem={(member) => (
                 <List.Item key={member.id}>
                   <List.Item.Meta title={member.displayName} />
                 </List.Item>
               )}
-              dataSource={team.members}
+              dataSource={sortBy(team.members, ["displayName"])}
             />
           </Card>
         </Col>
       </Row>
       <Card
         title='Sessions'
+        loading={loadingSessions}
         extra={
           (team.captains?.find((e) => e.id === user.id) || user.admin) && (
             <IconText
@@ -157,6 +169,7 @@ export default function TeamView() {
               return a.start.toDate() - b.start.toDate();
             })}
           loading={loadingSessions}
+          pagination={{ pageSize: 5 }}
           itemLayout='vertical'
           renderItem={(session) => (
             <List.Item
@@ -194,47 +207,75 @@ export default function TeamView() {
                   >
                     <IconText text='Delete' type='text' icon={DeleteOutlined} />
                   </Popconfirm>,
+                  <IconText
+                    text='Download'
+                    icon={DownloadOutlined}
+                    type='text'
+                    onClick={async () => {
+                      try {
+                        function s2ab(s) {
+                          var buf = new ArrayBuffer(s.length); //convert s to arrayBuffer
+                          var view = new Uint8Array(buf); //create uint8array as viewer
+                          for (var i = 0; i < s.length; i++)
+                            view[i] = s.charCodeAt(i) & 0xff; //convert to octet
+                          return buf;
+                        }
+                        const wbout = await firebase.generateSpreadsheet(
+                          session
+                        );
+                        saveAs(new Blob([s2ab(wbout)],{type:"application/octet-stream"}), `${session.name} - ${
+                            team.name
+                          } - ${DateTime.fromJSDate(
+                            session.start.toDate()
+                          ).toLocaleString(DateTime.DATE_SHORT)}.xlsx`);
+                      } catch (e) {
+                        notification.error({
+                          message: "Error",
+                          description: e.message,
+                        });
+                      }
+                    }}
+                  />,
                 ]
               }
               extra={
-                session.attending.find((e) => e === user.id) ? (
-                  <Button
-                    type='primary'
-                    disabled={
-                      DateTime.local().startOf("day").toJSDate() >
-                      session.start.toDate()
-                    }
-                    onClick={async () => {
-                      await firebase.setAttending(session.id, false);
-                    }}
-                  >
-                    Attending
-                  </Button>
-                ) : (
-                  <Button
-                    onClick={async () => {
-                      await firebase.setAttending(session.id, true);
-                    }}
-                  >
-                    Not attending
-                  </Button>
-                )
+                <Button
+                        type={!session.attending.some((e) => e === user.id) ? 'primary' : 'default'}
+                        icon={!session.attending.some((e) => e === user.id) ? <CheckOutlined/> : <CloseOutlined />}
+                        disabled={
+                          DateTime.local().startOf("day").toJSDate() >
+                            session.start.toDate() ||
+                          !teams
+                            .find((e) => e.id === session.team)
+                            ?.members?.some((e) => e.id === user.id)
+                        }
+                        onClick={async () => {
+                          await firebase.setAttending(session.id, !session.attending.some((e) => e === user.id));
+                        }}
+                      >
+                        Attending
+                      </Button>
               }
             >
               <List.Item.Meta
                 title={session.name}
-                description={`${DateTime.fromJSDate(
-                  session.start.toDate()
-                ).toFormat("ccc dd LLL T")} - ${DateTime.fromJSDate(
-                  session.end.toDate()
-                ).toFormat(
-                  DateTime.fromJSDate(session.start.toDate()).hasSame(
-                    DateTime.fromJSDate(session.end.toDate()),
-                    "day"
-                  )
-                    ? "T"
-                    : "ccc dd LLL T"
-                )}`}
+                description={
+                  <span>
+                    {DateTime.fromJSDate(session.start.toDate()).toFormat(
+                      "ccc dd LLL T"
+                    )}{" "}
+                    -{" "}
+                    {DateTime.fromJSDate(session.end.toDate()).toFormat(
+                      DateTime.fromJSDate(session.start.toDate()).hasSame(
+                        DateTime.fromJSDate(session.end.toDate()),
+                        "day"
+                      )
+                        ? "T"
+                        : "ccc dd LLL T"
+                    )}{" "}
+                    @ <strong>{session.location}</strong>
+                  </span>
+                }
               />
               {session.description}
             </List.Item>
@@ -288,6 +329,9 @@ function EditSession({ visible, toggle, team: { id, ...team }, session }) {
   useEffect(() => {
     if (!session?.id) {
       form.resetFields();
+      form.setFieldsValue({
+        location: "Weetwood Sports Park",
+      });
     } else {
       form.setFieldsValue({
         ...session,
@@ -347,6 +391,13 @@ function EditSession({ visible, toggle, team: { id, ...team }, session }) {
           name='name'
           label='Session name'
           rules={[{ required: true, message: "Session name is required" }]}
+        >
+          <Input />
+        </Form.Item>
+        <Form.Item
+          name='location'
+          label='Session location'
+          rules={[{ required: true, message: "Session location is required" }]}
         >
           <Input />
         </Form.Item>
@@ -419,9 +470,12 @@ function AssignMembers({ visible, toggle, team: { id, ...values } }) {
   useEffect(() => {
     const getData = async () => {
       try {
-        setUsers(await firebase.getUserList());
+        setUsers(sortBy(await firebase.getUserList(), ["displayName"]));
       } catch (e) {
-        console.error(e);
+        notification.error({
+          message: "Error",
+          description: e.message,
+        });
       }
     };
     getData();
@@ -448,7 +502,11 @@ function AssignMembers({ visible, toggle, team: { id, ...values } }) {
         form={form}
         layout='vertical'
         name='assign-members'
-        initialValues={{ members: values.members?.map((e) => e.id) ?? [] }}
+        initialValues={{
+          members: sortBy(values.members?.map((e) => e.id) ?? [], [
+            "displayName",
+          ]),
+        }}
       >
         <Form.Item
           name='members'
@@ -483,7 +541,10 @@ function AttendingMembers({ session }) {
       try {
         setMembers(await firebase.getMembersAttending(session));
       } catch (e) {
-        console.error(e);
+        notification.error({
+          message: "Error",
+          description: e.message,
+        });
       }
     };
     getData();
@@ -491,12 +552,12 @@ function AttendingMembers({ session }) {
 
   return (
     <List
-      dataSource={members}
+      dataSource={sortBy(members, "displayName")}
       renderItem={(member) => (
         <List.Item key={member.id}>
           <List.Item.Meta
             title={member.displayName}
-            description={member.phoneNumber}
+            // description={member.phoneNumber}
           />
         </List.Item>
       )}

@@ -32,11 +32,16 @@ import { config, useFirebase } from "../firebase";
 import { useMediaQuery } from "@material-ui/core";
 import { DateTime } from "luxon";
 export default function AdminView() {
-    const firebase = useFirebase();
+  const firebase = useFirebase();
   return (
     <Admin
       layout={(props) => <Layout {...props} appBar={() => null} />}
-      dataProvider={FirebaseDataProvider(config, {app: firebase.app, associateUsersById: true, metaFieldCasing: 'camel', logging: true})}
+      dataProvider={FirebaseDataProvider(config, {
+        app: firebase.app,
+        associateUsersById: true,
+        metaFieldCasing: "camel",
+        logging: true,
+      })}
     >
       <Resource name='users' list={UserList} edit={EditUser} />
       <Resource
@@ -84,7 +89,7 @@ function EditUser(props) {
       <SimpleForm>
         <TextInput source='id' disabled />
         <TextInput source='displayName' disabled />
-        <TextInput source='email' type='email' disabled  />
+        <TextInput source='email' type='email' disabled />
         <TextInput source='phoneNumber' type='tel' disabled />
         <BooleanInput source='admin' />
       </SimpleForm>
@@ -199,6 +204,7 @@ function SessionList(props) {
             <TextField source='name' />
           </ReferenceField>
           <TextField source='name' />
+          <TextField source='location' />
           <TextField source='description' />
           <FunctionField
             label='Attending'
@@ -218,6 +224,7 @@ function EditSession(props) {
         <DateTimeInput source='start' />
         <DateTimeInput source='end' />
         <TextInput source='name' />
+        <TextInput source='location' />
         <TextInput source='description' multiline />
         <ReferenceInput label='Team' source='team' reference='teams'>
           <SelectInput optionText='name' />

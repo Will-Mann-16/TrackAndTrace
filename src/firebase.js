@@ -7,7 +7,8 @@ import * as firebaseUI from "firebaseui";
 import { DateTime } from "luxon";
 import LogRocket from "logrocket";
 import * as Sentry from "@sentry/react";
-import { chunk, flatten} from 'lodash';
+import { chunk, flatten } from "lodash";
+import XLSX from "xlsx";
 
 export const config = {
   apiKey: process.env.REACT_APP_API_KEY,
@@ -31,6 +32,33 @@ class Firebase {
     this.analytics = app.analytics();
   }
 
+  isAdmin = async () => {
+    return (
+      await this.firestore
+        .collection("users")
+        .doc(this.auth.currentUser.uid)
+        .get()
+    ).data().admin;
+  };
+
+  isCaptain = async (teamID) => {
+    return (await this.firestore.collection("teams").doc(teamID).get())
+      .data()
+      .captains.includes(this.auth.currentUser.uid);
+  };
+
+  isMember = async (teamID) => {
+    return (await this.firestore.collection("teams").doc(teamID).get())
+      .data()
+      .members.includes(this.auth.currentUser.uid);
+  };
+
+  getTeamIDFromSessionID = async (sessionID) => {
+    return (
+      await this.firestore.collection("sessions").doc(sessionID).get()
+    ).data().team;
+  };
+
   onAuthStateChanged = (callback) => {
     this.auth.onAuthStateChanged(async (result) => {
       if (result) {
@@ -40,7 +68,10 @@ class Firebase {
           .get();
         if (ref.exists) {
           const data = ref.data();
-          if (!data.displayName || (!!result.displayName && data.displayName !== result.displayName)) {
+          if (
+            !data.displayName ||
+            (!!result.displayName && data.displayName !== result.displayName)
+          ) {
             await this.firestore.collection("users").doc(result.uid).update({
               displayName: result.displayName,
               email: result.email,
@@ -131,8 +162,10 @@ class Firebase {
   signOut = async () => await this.auth.signOut();
 
   sortText = (field, desc = false) => (a, b) => {
-    if (a[field] < b[field]) return desc ? 1 : -1;
-    if (a[field] > b[field]) return desc ? -1 : 1;
+    if (a[field].trim().toLowerCase() < b[field].trim().toLowerCase())
+      return desc ? 1 : -1;
+    if (a[field].trim().toLowerCase() > b[field].trim().toLowerCase())
+      return desc ? -1 : 1;
     return 0;
   };
   sortNumbers = (field, desc = false) => (a, b) =>
@@ -140,56 +173,55 @@ class Firebase {
 
   getData = (data) => ({ id: data.id, ...data.data() });
 
-  splitTo = async (data, callback, chunkSize=10) => {
+  splitTo = async (data, callback, chunkSize = 10) => {
     let split = chunk(data, chunkSize);
 
-    const results = await Promise.all(split.map(async values => {
-      return await callback(values);
-    }));
+    const results = await Promise.all(
+      split.map(async (values) => {
+        return await callback(values);
+      })
+    );
 
     return flatten(results);
-  }
+  };
 
   teamsListener = async (callback) => {
     if (!this.auth.currentUser?.uid) return () => {};
-    if (
-      (
-        await this.firestore
-          .collection("users")
-          .doc(this.auth.currentUser.uid)
-          .get()
-      ).data().admin
-    ) {
+    if (await this.isAdmin()) {
       const data = this.firestore.collection("teams");
       return data.onSnapshot(callback);
     } else {
       const data = this.firestore
-      .collection("teams")
-      .where("members", "array-contains", this.auth.currentUser.uid);
+        .collection("teams")
+        .where("members", "array-contains", this.auth.currentUser.uid);
       return data.onSnapshot(callback);
     }
   };
 
   populateTeam = async (team) => {
     const captains = !!team.captains
-      ? await this.splitTo(team.captains, async val =>
-          (await this.firestore
-            .collection("users")
-            .where(app.firestore.FieldPath.documentId(), "in", val)
-            .get()
-        ).docs
-          .map(this.getData)
-          .sort(this.sortText("name")))
+      ? await this.splitTo(team.captains, async (val) =>
+          (
+            await this.firestore
+              .collection("users")
+              .where(app.firestore.FieldPath.documentId(), "in", val)
+              .get()
+          ).docs
+            .map(this.getData)
+            .sort(this.sortText("displayName"))
+        )
       : [];
     const members = !!team.members
-      ? await this.splitTo(team.members, async val =>
-          (await this.firestore
-            .collection("users")
-            .where(app.firestore.FieldPath.documentId(), "in", val)
-            .get()
-        ).docs
-          .map(this.getData)
-          .sort(this.sortText("name")))
+      ? await this.splitTo(team.members, async (val) =>
+          (
+            await this.firestore
+              .collection("users")
+              .where(app.firestore.FieldPath.documentId(), "in", val)
+              .get()
+          ).docs
+            .map(this.getData)
+            .sort(this.sortText("displayName"))
+        )
       : [];
 
     return { ...team, captains, members };
@@ -198,14 +230,7 @@ class Firebase {
   sessionsListener = async (callback) => {
     if (!this.auth.currentUser?.uid) return () => {};
     let teams = [];
-    if (
-      (
-        await this.firestore
-          .collection("users")
-          .doc(this.auth.currentUser.uid)
-          .get()
-      ).data().admin
-    ) {
+    if (await this.isAdmin()) {
       teams = (await this.firestore.collection("teams").get()).docs.map(
         (e) => e.id
       );
@@ -225,17 +250,7 @@ class Firebase {
   };
 
   updateTeam = async (teamID, team) => {
-    if (
-      (await this.firestore.collection("teams").doc(teamID).get())
-        .data()
-        .captains.includes(this.auth.currentUser.uid) ||
-      (
-        await this.firestore
-          .collection("users")
-          .doc(this.auth.currentUser.uid)
-          .get()
-      ).data().admin
-    ) {
+    if ((await this.isCaptain(teamID)) || (await this.isAdmin())) {
       await this.firestore.collection("teams").doc(teamID).update(team);
     } else {
       throw new Error("Not authorized");
@@ -245,21 +260,12 @@ class Firebase {
   getUserList = async () => {
     return (await this.firestore.collection("users").get()).docs
       .map(this.getData)
+      .sort(this.sortText("displayName"))
       .map((e) => ({ displayName: e.displayName, id: e.id }));
   };
 
   createSession = async (session) => {
-    if (
-      (await this.firestore.collection("teams").doc(session.team).get())
-        .data()
-        .captains.includes(this.auth.currentUser.uid) ||
-      (
-        await this.firestore
-          .collection("users")
-          .doc(this.auth.currentUser.uid)
-          .get()
-      ).data().admin
-    ) {
+    if ((await this.isCaptain(session.team)) || (await this.isAdmin())) {
       await this.firestore
         .collection("sessions")
         .add({ ...session, attending: [] });
@@ -269,17 +275,7 @@ class Firebase {
   };
 
   updateSession = async (sessionID, session) => {
-    if (
-      (await this.firestore.collection("teams").doc(session.team).get())
-        .data()
-        .captains.includes(this.auth.currentUser.uid) ||
-      (
-        await this.firestore
-          .collection("users")
-          .doc(this.auth.currentUser.uid)
-          .get()
-      ).data().admin
-    ) {
+    if ((await this.isCaptain(session.team)) || (await this.isAdmin())) {
       await this.firestore
         .collection("sessions")
         .doc(sessionID)
@@ -289,17 +285,7 @@ class Firebase {
     }
   };
   deleteSession = async (session) => {
-    if (
-      (await this.firestore.collection("teams").doc(session.team).get())
-        .data()
-        .captains.includes(this.auth.currentUser.uid) ||
-      (
-        await this.firestore
-          .collection("users")
-          .doc(this.auth.currentUser.uid)
-          .get()
-      ).data().admin
-    ) {
+    if ((await this.isCaptain(session.team)) || (await this.isAdmin())) {
       await this.firestore.collection("sessions").doc(session.id).delete();
     } else {
       throw new Error("Not authorized");
@@ -307,20 +293,7 @@ class Firebase {
   };
 
   setAttending = async (sessionID, status) => {
-    if (
-      (
-        await this.firestore
-          .collection("teams")
-          .doc(
-            (
-              await this.firestore.collection("sessions").doc(sessionID).get()
-            ).data().team
-          )
-          .get()
-      )
-        .data()
-        .members.includes(this.auth.currentUser.uid)
-    ) {
+    if (await this.isMember(await this.getTeamIDFromSessionID(sessionID))) {
       await this.firestore
         .collection("sessions")
         .doc(sessionID)
@@ -349,13 +322,85 @@ class Firebase {
           .get()
       ).data().admin
     ) {
-      const members = await this.splitTo(session.attending, async val => (await this.firestore
-        .collection("users")
-        .where(app.firestore.FieldPath.documentId(), "in", val)
-        .get()).docs.map(this.getData));
-        return members;
+      const members = await this.splitTo(session.attending, async (val) =>
+        (
+          await this.firestore
+            .collection("users")
+            .where(app.firestore.FieldPath.documentId(), "in", val)
+            .get()
+        ).docs
+          .map(this.getData)
+          .sort(this.sortText("displayName"))
+      );
+      return members;
     } else {
       throw new Error("Not a captain of this team / admin");
+    }
+  };
+
+  generateSpreadsheet = async (session) => {
+    const team = (
+      await this.firestore.collection("teams").doc(session.team).get()
+    ).data();
+    if (
+      team.captains.includes(this.auth.currentUser.uid) ||
+      (await this.isAdmin())
+    ) {
+      const attending = await this.getMembersAttending(session.id);
+      let wb = XLSX.utils.book_new();
+
+      wb.Props = {
+        Title: `${session.name} - ${DateTime.fromJSDate(
+          session.start.toDate()
+        ).toLocaleString(DateTime.DATE_SHORT)}`,
+        Subject: `${team.name} Track and Trace`,
+        Author: this.auth.currentUser.displayName,
+        CreatedDate: new Date(),
+      };
+
+      wb.SheetNames.push(team.name);
+
+      let data = [];
+
+      data.push([
+        "Name",
+        "Date of Session (in dd/mm/yyyy format)",
+        "Time of Session (From - To in hh:mm as 24 hour format)",
+        "Location of Session",
+        "Email of Attendee",
+        "Phone of Attendee",
+      ]);
+      data.push([
+        team.name,
+        team.name,
+        team.name,
+        team.name,
+        team.name,
+        team.name,
+      ]);
+
+      attending.forEach((member) => {
+        data.push([
+          member.displayName,
+          DateTime.fromJSDate(session.start.toDate()).toLocaleString(
+            DateTime.DATE_SHORT
+          ),
+          `${DateTime.fromJSDate(session.start.toDate()).toLocaleString(
+            DateTime.TIME_24_SIMPLE
+          )} - ${DateTime.fromJSDate(session.end.toDate()).toLocaleString(
+            DateTime.TIME_24_SIMPLE
+          )}`,
+          session.location,
+          member.email,
+          member.phoneNumber,
+        ]);
+      });
+
+      wb.Sheets[team.name] = XLSX.utils.aoa_to_sheet(data);
+
+      return XLSX.write(wb, { bookType: "xlsx", type: "binary" });
+    } else {
+      throw new Error("Not authorized");
     }
   };
 }
