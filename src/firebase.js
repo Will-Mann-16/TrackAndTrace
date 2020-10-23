@@ -268,7 +268,11 @@ class Firebase {
     if ((await this.isCaptain(session.team)) || (await this.isAdmin())) {
       await this.firestore
         .collection("sessions")
-        .add({ ...session, attending: [] });
+        .add(
+          session.type === "training"
+            ? { ...session, attending: [] }
+            : { ...session, attending: [], available: [] }
+        );
     } else {
       throw new Error("Not authorized");
     }
@@ -307,20 +311,33 @@ class Firebase {
     }
   };
 
+  setAvailable = async (sessionID, status) => {
+    if (
+      (await this.isMember(await this.getTeamIDFromSessionID(sessionID))) &&
+      (await this.firestore.collection("sessions").doc(sessionID).get()).data()
+        .type === "fixture"
+    ) {
+      await this.firestore
+        .collection("sessions")
+        .doc(sessionID)
+        .update({
+          available: status
+            ? app.firestore.FieldValue.arrayUnion(this.auth.currentUser.uid)
+            : app.firestore.FieldValue.arrayRemove(this.auth.currentUser.uid),
+        });
+    } else {
+      throw new Error("Not a valid request");
+    }
+  };
+
   getMembersAttending = async (sessionID) => {
     const session = (
       await this.firestore.collection("sessions").doc(sessionID).get()
     ).data();
     if (
-      (await this.firestore.collection("teams").doc(session.team).get())
-        .data()
-        .captains.includes(this.auth.currentUser.uid) ||
-      (
-        await this.firestore
-          .collection("users")
-          .doc(this.auth.currentUser.uid)
-          .get()
-      ).data().admin
+      session.type === "fixture" ||
+      (await this.isCaptain(session.team)) ||
+      (await this.isAdmin())
     ) {
       const members = await this.splitTo(session.attending, async (val) =>
         (
@@ -478,6 +495,7 @@ function SessionProvider({ children }) {
   });
   const firebase = useContext(FirebaseContext);
   const user = useContext(UserContext);
+  const { data: teams } = useContext(TeamContext);
 
   useEffect(() => {
     const unsub = firebase.sessionsListener(
@@ -485,7 +503,41 @@ function SessionProvider({ children }) {
         try {
           setVariables((e) => ({ ...e, loading: true }));
           const data = await Promise.all(snapshot.docs.map(firebase.getData));
-          setVariables({ loading: false, error: null, data });
+          setVariables({
+            loading: false,
+            error: null,
+            data: data.map(({ attending, available, type, team, ...rest }) => {
+              if (
+                user.admin ||
+                teams
+                  .find((e) => e.id === team)
+                  ?.captains.some((e) => e === user.id)
+              ) {
+                return {
+                  attending,
+                  available,
+                  type,
+                  team,
+                  ...rest,
+                };
+              } else if (type === "fixture") {
+                return {
+                  attending,
+                  available: available.filter((e) => e === user.id),
+                  type,
+                  team,
+                  ...rest,
+                };
+              } else {
+                return {
+                  attending: attending.filter((e) => e === user.id),
+                  type,
+                  team,
+                  ...rest,
+                };
+              }
+            }),
+          });
         } catch (e) {
           setVariables({ loading: false, error: e, data: [] });
         }
@@ -496,7 +548,7 @@ function SessionProvider({ children }) {
     return () => {
       if (typeof unsub === "function") unsub();
     };
-  }, [user]);
+  }, [user, teams]);
 
   return (
     <SessionContext.Provider
