@@ -39,6 +39,7 @@ export default function AttendingMembers({
     >
       <List
         dataSource={sortBy(members, "displayName")}
+        pagination={{ pageSize: 10 }}
         renderItem={(member) => (
           <List.Item key={member.id}>
             <List.Item.Meta title={member.displayName} />

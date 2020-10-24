@@ -256,7 +256,7 @@ function Session({
             </span>
           }
         />
-        {session.description}
+        <div dangerouslySetInnerHTML={{__html: session.description}} />
       </List.Item>
       {(team.captains?.find((e) => e.id === user.id) || user.admin) && (
         <>

@@ -111,7 +111,7 @@ function Container() {
 
   return (
     <Sentry.ErrorBoundary fallback="An error has occursed">
-    <Main center={!user} fullWidth={location.pathname === "/admin"}>
+    <Main center={!user} fullWidth={location.pathname === "/admin" || location.pathname === "/teams"}>
       {!!user ? (
         <>
         <Switch>

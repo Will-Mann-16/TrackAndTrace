@@ -1,15 +1,25 @@
 import React, { useState, useEffect } from "react";
 import { useFirebase } from "../firebase";
-import { Form, Modal, Select, notification } from "antd";
+import {
+  Button,
+  List,
+  Modal,
+  Select,
+  notification,
+  Space,
+  Divider,
+  Dropdown,
+  Menu
+} from "antd";
 import { sortBy } from "lodash";
+import { CheckOutlined, CloseOutlined, PlusOutlined, DownOutlined } from "@ant-design/icons";
 
 const { Option } = Select;
 export default function AssignMembers({
   visible,
   toggle,
-  team: { id, ...values },
+  team: { id, members, applied, captains, ...rest },
 }) {
-  const [form] = Form.useForm();
   const firebase = useFirebase();
   const [userList, setUsers] = useState([]);
 
@@ -30,50 +40,72 @@ export default function AssignMembers({
   return (
     <Modal
       visible={visible}
-      okText='Submit'
-      title='Assign Members'
+      title='Members'
       cancelText='Cancel'
       onCancel={toggle}
-      onOk={() => {
-        form
-          .validateFields()
-          .then((values) => firebase.updateTeam(id, values))
-          .then((res) => {
-            form.resetFields();
-            toggle();
-          });
-      }}
+      footer={[
+        <Button key='close' onClick={toggle}>
+          Close
+        </Button>,
+      ]}
     >
-      <Form
-        form={form}
-        layout='vertical'
-        name='assign-members'
-        initialValues={{
-          members: sortBy(values.members?.map((e) => e.id) ?? [], [
-            "displayName",
-          ]),
-        }}
-      >
-        <Form.Item
-          name='members'
-          label='Members'
-          rules={[
-            {
-              required: true,
-              message: "Please select team members",
-              type: "array",
-            },
-          ]}
-        >
-          <Select mode='multiple' placeholder='Please select team members'>
-            {userList.map(({ id, displayName }) => (
-              <Option key={id} value={id}>
-                {displayName}
-              </Option>
-            ))}
-          </Select>
-        </Form.Item>
-      </Form>
+      <List
+        dataSource={[
+          ...sortBy(applied, "displayName"),
+          ...sortBy(members, "displayName"),
+        ]}
+        pagination={{ pageSize: 10 }}
+        itemLayout='horizontal'
+        renderItem={(member) => (
+          <List.Item
+            key={member.id}
+            actions={
+              !!members.find((e) => e.id === member.id)
+                ? [
+                    <Button
+                      type='danger'
+                      disabled={!!captains.find((e) => e.id === member.id)}
+                      onClick={() => firebase.removeMember(id, member.id)}
+                    >
+                      <CloseOutlined />
+                      Remove
+                    </Button>,
+                  ]
+                : [
+                    <Button
+                      type='primary'
+                      onClick={() => firebase.approveMember(id, member.id)}
+                    >
+                      <CheckOutlined />
+                      Approve
+                    </Button>,
+                    <Button
+                      type='danger'
+                      onClick={() => firebase.denyMember(id, member.id)}
+                    >
+                      <CloseOutlined />
+                      Deny
+                    </Button>,
+                  ]
+            }
+          >
+            <List.Item.Meta title={member.displayName} />
+          </List.Item>
+        )}
+
+      />
+      <br/>
+        <Dropdown overlay={<Menu>
+          {userList.map(({ id: uid, displayName }) => (
+            <Menu.Item key={uid} onClick={() => firebase.addMember(id, uid)}>
+              {displayName}
+            </Menu.Item>
+          ))}
+        </Menu>}>
+          <Button block type='primary'>
+            <PlusOutlined /> Add Member <DownOutlined/>
+          </Button>
+        </Dropdown>
     </Modal>
   );
 }

@@ -224,7 +224,19 @@ class Firebase {
         )
       : [];
 
-    return { ...team, captains, members };
+      const applied = !!team.applied
+      ? await this.splitTo(team.applied, async (val) =>
+          (
+            await this.firestore
+              .collection("users")
+              .where(app.firestore.FieldPath.documentId(), "in", val)
+              .get()
+          ).docs
+            .map(this.getData)
+            .sort(this.sortText("displayName"))
+        )
+      : [];
+    return { ...team, captains, members, applied };
   };
 
   sessionsListener = async (callback) => {
@@ -256,6 +268,128 @@ class Firebase {
       throw new Error("Not authorized");
     }
   };
+
+  allTeamsListener = async (callback) => {
+    this.firestore.collection('teams').onSnapshot(snapshot => {
+      callback(Promise.all(snapshot.docs.map(this.getData).sort(this.sortText('name')).map(async (team) => ({
+        id: team.id,
+        name: team.name,
+        bio: team.bio,
+        members: team.members,
+        applied: team.applied,
+        captains: !!team.captains
+          ? await this.splitTo(team.captains, async (val) =>
+              (
+                await this.firestore
+                  .collection("users")
+                  .where(app.firestore.FieldPath.documentId(), "in", val)
+                  .get()
+              ).docs
+                .map(this.getData)
+                .sort(this.sortText("displayName"))
+            )
+          : [],
+      }))));
+    });
+  }
+
+  getTeamList = async () => {
+    return await Promise.all(
+      (await this.firestore.collection("teams").get()).docs
+        .map(this.getData)
+        .sort(this.sortText("name"))
+        .map(async (team) => ({
+          id: team.id,
+          name: team.name,
+          bio: team.bio,
+          members: team.members,
+          applied: team.applied,
+          captains: !!team.captains
+            ? await this.splitTo(team.captains, async (val) =>
+                (
+                  await this.firestore
+                    .collection("users")
+                    .where(app.firestore.FieldPath.documentId(), "in", val)
+                    .get()
+                ).docs
+                  .map(this.getData)
+                  .sort(this.sortText("displayName"))
+              )
+            : [],
+        }))
+    );
+  };
+
+  setApplied = async (teamID, status) => {
+    return await this.firestore
+      .collection("teams")
+      .doc(teamID)
+      .update(
+        status
+          ? {
+              applied: app.firestore.FieldValue.arrayUnion(
+                this.auth.currentUser.uid
+              ),
+            }
+          : {
+              applied: app.firestore.FieldValue.arrayRemove(
+                this.auth.currentUser.uid
+              ),
+            }
+      );
+  };
+
+  approveMember = async (teamID, memberID) => {
+    if ((await this.isAdmin()) || (await this.isCaptain(teamID))) {
+      return await this.firestore
+        .collection("teams")
+        .doc(teamID)
+        .update({
+          applied: app.firestore.FieldValue.arrayRemove(memberID),
+          members: app.firestore.FieldValue.arrayUnion(memberID),
+        });
+    } else {
+      throw new Error("Unauthorised");
+    }
+  };
+
+  denyMember = async (teamID, memberID) => {
+    if ((await this.isAdmin()) || (await this.isCaptain(teamID))) {
+      return await this.firestore
+        .collection("teams")
+        .doc(teamID)
+        .update({ applied: app.firestore.FieldValue.arrayRemove(memberID) });
+    } else {
+      throw new Error("Unauthorised");
+    }
+  };
+
+  addMember = async (teamID, memberID) => {
+    if ((await this.isAdmin()) || (await this.isCaptain(teamID))) {
+      return await this.firestore
+        .collection("teams")
+        .doc(teamID)
+        .update({
+          members: app.firestore.FieldValue.arrayUnion(memberID),
+        });
+    } else {
+      throw new Error("Unauthorised");
+    }
+  };
+
+  removeMember = async (teamID, memberID) => {
+    if ((await this.isAdmin()) || (await this.isCaptain(teamID))) {
+      return await this.firestore
+        .collection("teams")
+        .doc(teamID)
+        .update({
+          members: app.firestore.FieldValue.arrayRemove(memberID),
+        });
+    } else {
+      throw new Error("Unauthorised");
+    }
+  };
+
 
   getUserList = async () => {
     return (await this.firestore.collection("users").get()).docs

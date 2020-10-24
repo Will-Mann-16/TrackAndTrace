@@ -4,6 +4,7 @@ import { Form, Input, Modal, DatePicker, Select } from "antd";
 import moment from "moment";
 import { DateTime } from "luxon";
 import { useMembers } from "./AttendingMembers";
+import RichTextEditor from './RichTextEditor';
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
@@ -146,7 +147,7 @@ export default function EditSession({
                     },
                   ]}
                 >
-                  <Input.TextArea rows={4} />
+                  <RichTextEditor/>
                 </Form.Item>
               </>
             ) : (
@@ -185,7 +186,7 @@ export default function EditSession({
                     },
                   ]}
                 >
-                  <Input.TextArea rows={4} />
+                  <RichTextEditor/>
                 </Form.Item>
               </>
             )

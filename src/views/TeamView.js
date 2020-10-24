@@ -15,6 +15,7 @@ import {
   Modal,
   Button,
   Tooltip,
+  Badge,
 } from "antd";
 import { DateTime } from "luxon";
 import styled from "styled-components";
@@ -30,12 +31,21 @@ const Card = styled(C)`
 
 const { Title, Text } = Typography;
 
-const IconText = ({ icon, text, tooltip, ...props }) => (
+const IconText = ({ icon, text, tooltip, badge, ...props }) => (
   <Tooltip title={tooltip}>
-    <Button {...props}>
-      {React.createElement(icon)}
-      {text}
-    </Button>
+    {badge ? (
+      <Badge count={badge}>
+        <Button {...props}>
+          {React.createElement(icon)}
+          {text}
+        </Button>
+      </Badge>
+    ) : (
+      <Button {...props}>
+        {React.createElement(icon)}
+        {text}
+      </Button>
+    )}
   </Tooltip>
 );
 export default function TeamView() {
@@ -60,6 +70,17 @@ export default function TeamView() {
       </>
     );
 
+  if (Object.keys(team).length === 0 && teams.length > 0) {
+    return (
+      <>
+        <Title type='danger'>Oops! Team not found</Title>
+        <Text type='danger'>
+          If this is unexpected, please contact an admin
+        </Text>
+      </>
+    );
+  }
+
   return (
     <>
       <Card
@@ -76,7 +97,7 @@ export default function TeamView() {
           )
         }
       >
-        {team.bio}
+        <div dangerouslySetInnerHTML={{__html: team.bio}} />
       </Card>
       <Row style={{ paddingTop: 16 }} gutter={[16, 16]}>
         <Col md={12} xs={24}>
@@ -115,6 +136,7 @@ export default function TeamView() {
                   tooltip='Add/Remove members from your team'
                   icon={UsergroupAddOutlined}
                   onClick={() => setMembers(true)}
+                  badge={team.applied?.length > 0 && team.applied.length}
                 />
               )
             }
@@ -165,7 +187,9 @@ export default function TeamView() {
             })}
           pagination={{ pageSize: 5 }}
           itemLayout='vertical'
-          renderItem={(session) => <Session key={session.id} session={session} showActions />}
+          renderItem={(session) => (
+            <Session key={session.id} session={session} showActions />
+          )}
         />
       </Card>
       {(team.captains?.find((e) => e.id === user.id) || user.admin) && (
@@ -191,4 +215,3 @@ export default function TeamView() {
     </>
   );
 }
-

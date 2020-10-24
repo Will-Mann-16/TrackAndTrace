@@ -1,6 +1,7 @@
 import React from "react";
 import { useFirebase } from "../firebase";
 import { Form, Input, Modal } from "antd";
+import RichTextEditor from "./RichTextEditor";
 
 export default function EditTeam({ visible, toggle, team: { id, ...values } }) {
   const [form] = Form.useForm();
@@ -40,7 +41,7 @@ export default function EditTeam({ visible, toggle, team: { id, ...values } }) {
           label='Team bio'
           rules={[{ required: true, message: "Team bio is required" }]}
         >
-          <Input.TextArea rows={4} />
+          <RichTextEditor/>
         </Form.Item>
       </Form>
     </Modal>
