@@ -224,7 +224,19 @@ class Firebase {
         )
       : [];
 
-    return { ...team, captains, members };
+      const applied = !!team.applied
+      ? await this.splitTo(team.applied, async (val) =>
+          (
+            await this.firestore
+              .collection("users")
+              .where(app.firestore.FieldPath.documentId(), "in", val)
+              .get()
+          ).docs
+            .map(this.getData)
+            .sort(this.sortText("displayName"))
+        )
+      : [];
+    return { ...team, captains, members, applied };
   };
 
   sessionsListener = async (callback) => {
@@ -257,6 +269,128 @@ class Firebase {
     }
   };
 
+  allTeamsListener = async (callback) => {
+    this.firestore.collection('teams').onSnapshot(snapshot => {
+      callback(Promise.all(snapshot.docs.map(this.getData).sort(this.sortText('name')).map(async (team) => ({
+        id: team.id,
+        name: team.name,
+        bio: team.bio,
+        members: team.members,
+        applied: team.applied,
+        captains: !!team.captains
+          ? await this.splitTo(team.captains, async (val) =>
+              (
+                await this.firestore
+                  .collection("users")
+                  .where(app.firestore.FieldPath.documentId(), "in", val)
+                  .get()
+              ).docs
+                .map(this.getData)
+                .sort(this.sortText("displayName"))
+            )
+          : [],
+      }))));
+    });
+  }
+
+  getTeamList = async () => {
+    return await Promise.all(
+      (await this.firestore.collection("teams").get()).docs
+        .map(this.getData)
+        .sort(this.sortText("name"))
+        .map(async (team) => ({
+          id: team.id,
+          name: team.name,
+          bio: team.bio,
+          members: team.members,
+          applied: team.applied,
+          captains: !!team.captains
+            ? await this.splitTo(team.captains, async (val) =>
+                (
+                  await this.firestore
+                    .collection("users")
+                    .where(app.firestore.FieldPath.documentId(), "in", val)
+                    .get()
+                ).docs
+                  .map(this.getData)
+                  .sort(this.sortText("displayName"))
+              )
+            : [],
+        }))
+    );
+  };
+
+  setApplied = async (teamID, status) => {
+    return await this.firestore
+      .collection("teams")
+      .doc(teamID)
+      .update(
+        status
+          ? {
+              applied: app.firestore.FieldValue.arrayUnion(
+                this.auth.currentUser.uid
+              ),
+            }
+          : {
+              applied: app.firestore.FieldValue.arrayRemove(
+                this.auth.currentUser.uid
+              ),
+            }
+      );
+  };
+
+  approveMember = async (teamID, memberID) => {
+    if ((await this.isAdmin()) || (await this.isCaptain(teamID))) {
+      return await this.firestore
+        .collection("teams")
+        .doc(teamID)
+        .update({
+          applied: app.firestore.FieldValue.arrayRemove(memberID),
+          members: app.firestore.FieldValue.arrayUnion(memberID),
+        });
+    } else {
+      throw new Error("Unauthorised");
+    }
+  };
+
+  denyMember = async (teamID, memberID) => {
+    if ((await this.isAdmin()) || (await this.isCaptain(teamID))) {
+      return await this.firestore
+        .collection("teams")
+        .doc(teamID)
+        .update({ applied: app.firestore.FieldValue.arrayRemove(memberID) });
+    } else {
+      throw new Error("Unauthorised");
+    }
+  };
+
+  addMember = async (teamID, memberID) => {
+    if ((await this.isAdmin()) || (await this.isCaptain(teamID))) {
+      return await this.firestore
+        .collection("teams")
+        .doc(teamID)
+        .update({
+          members: app.firestore.FieldValue.arrayUnion(memberID),
+        });
+    } else {
+      throw new Error("Unauthorised");
+    }
+  };
+
+  removeMember = async (teamID, memberID) => {
+    if ((await this.isAdmin()) || (await this.isCaptain(teamID))) {
+      return await this.firestore
+        .collection("teams")
+        .doc(teamID)
+        .update({
+          members: app.firestore.FieldValue.arrayRemove(memberID),
+        });
+    } else {
+      throw new Error("Unauthorised");
+    }
+  };
+
+
   getUserList = async () => {
     return (await this.firestore.collection("users").get()).docs
       .map(this.getData)
@@ -268,7 +402,11 @@ class Firebase {
     if ((await this.isCaptain(session.team)) || (await this.isAdmin())) {
       await this.firestore
         .collection("sessions")
-        .add({ ...session, attending: [] });
+        .add(
+          session.type === "training"
+            ? { ...session, attending: [] }
+            : { ...session, attending: [], available: [] }
+        );
     } else {
       throw new Error("Not authorized");
     }
@@ -307,20 +445,33 @@ class Firebase {
     }
   };
 
+  setAvailable = async (sessionID, status) => {
+    if (
+      (await this.isMember(await this.getTeamIDFromSessionID(sessionID))) &&
+      (await this.firestore.collection("sessions").doc(sessionID).get()).data()
+        .type === "fixture"
+    ) {
+      await this.firestore
+        .collection("sessions")
+        .doc(sessionID)
+        .update({
+          available: status
+            ? app.firestore.FieldValue.arrayUnion(this.auth.currentUser.uid)
+            : app.firestore.FieldValue.arrayRemove(this.auth.currentUser.uid),
+        });
+    } else {
+      throw new Error("Not a valid request");
+    }
+  };
+
   getMembersAttending = async (sessionID) => {
     const session = (
       await this.firestore.collection("sessions").doc(sessionID).get()
     ).data();
     if (
-      (await this.firestore.collection("teams").doc(session.team).get())
-        .data()
-        .captains.includes(this.auth.currentUser.uid) ||
-      (
-        await this.firestore
-          .collection("users")
-          .doc(this.auth.currentUser.uid)
-          .get()
-      ).data().admin
+      session.type === "fixture" ||
+      (await this.isCaptain(session.team)) ||
+      (await this.isAdmin())
     ) {
       const members = await this.splitTo(session.attending, async (val) =>
         (
@@ -478,6 +629,7 @@ function SessionProvider({ children }) {
   });
   const firebase = useContext(FirebaseContext);
   const user = useContext(UserContext);
+  const { data: teams } = useContext(TeamContext);
 
   useEffect(() => {
     const unsub = firebase.sessionsListener(
@@ -485,7 +637,41 @@ function SessionProvider({ children }) {
         try {
           setVariables((e) => ({ ...e, loading: true }));
           const data = await Promise.all(snapshot.docs.map(firebase.getData));
-          setVariables({ loading: false, error: null, data });
+          setVariables({
+            loading: false,
+            error: null,
+            data: data.map(({ attending, available, type, team, ...rest }) => {
+              if (
+                user.admin ||
+                teams
+                  .find((e) => e.id === team)
+                  ?.captains.some((e) => e === user.id)
+              ) {
+                return {
+                  attending,
+                  available,
+                  type,
+                  team,
+                  ...rest,
+                };
+              } else if (type === "fixture") {
+                return {
+                  attending,
+                  available: available.filter((e) => e === user.id),
+                  type,
+                  team,
+                  ...rest,
+                };
+              } else {
+                return {
+                  attending: attending.filter((e) => e === user.id),
+                  type,
+                  team,
+                  ...rest,
+                };
+              }
+            }),
+          });
         } catch (e) {
           setVariables({ loading: false, error: e, data: [] });
         }
@@ -496,7 +682,7 @@ function SessionProvider({ children }) {
     return () => {
       if (typeof unsub === "function") unsub();
     };
-  }, [user]);
+  }, [user, teams]);
 
   return (
     <SessionContext.Provider
