@@ -7,7 +7,7 @@ export default function RichTextEditor({ value, onChange, readOnly, ...props }) 
     <ReactQuill
       {...props}
       readOnly={readOnly}
-      value={value}
+      value={value || ''}
       onChange={onChange}
     />
   );
