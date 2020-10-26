@@ -110,7 +110,7 @@ export default function TeamsView() {
               ]}
               onClick={() => history.push(`/teams/${team.id}`)}
             >
-        <div dangerouslySetInnerHTML={{__html: team.bio}} />
+              <div dangerouslySetInnerHTML={{__html: team.bio}} />
             </Card>
           </List.Item>
         )}

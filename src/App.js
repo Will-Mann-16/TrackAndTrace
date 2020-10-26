@@ -48,7 +48,7 @@ const Topbar = styled(Header)`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  ${'' /* background-color: #144733; */}
+  background-color: #144733;
 `;
 
 function App() {
@@ -77,7 +77,7 @@ function App() {
             level={3}
             style={{ flex: 10, textAlign: "center", color: "white", marginBottom: 0 }}
           >
-            Sport Track & Trace
+            Track & Trace
           </Title>
           <div style={{flex: 1}} />
         </Topbar>
