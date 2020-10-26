@@ -3,7 +3,7 @@ import ReactDOM from "react-dom";
 import App from "./App";
 import * as serviceWorker from "./serviceWorker";
 import { Providers } from "./firebase";
-import './index.css';
+import './index.less';
 import * as Sentry from "@sentry/react";
 import { Integrations } from "@sentry/tracing";
 import LogRocket from 'logrocket';

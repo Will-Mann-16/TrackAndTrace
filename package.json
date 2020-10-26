@@ -3,12 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@craco/craco": "^5.7.0",
     "@sentry/react": "^5.26.0",
     "@sentry/tracing": "^5.26.0",
     "@testing-library/jest-dom": "^4.2.4",
     "@testing-library/react": "^9.3.2",
     "@testing-library/user-event": "^7.1.2",
     "antd": "^4.6.6",
+    "craco-less": "^1.17.0",
     "file-saver": "^2.0.2",
     "firebase": "^7.22.1",
     "firebaseui": "^4.6.1",
@@ -29,9 +31,9 @@
     "xlsx": "^0.16.8"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
+    "start": "craco start",
+    "build": "craco build",
+    "test": "craco test",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {
