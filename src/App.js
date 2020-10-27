@@ -162,9 +162,7 @@ export function PhoneAuth() {
   useEffect(() => {
     firebase.ui.start("#firebaseui-auth-container", {
       signInSuccessUrl:
-        process.env.NODE_ENV === "production"
-          ? process.env.REACT_APP_PROD_URL
-          : process.env.REACT_APP_DEV_URL,
+        window.location.href,
       signInOptions: [
         {
           provider: firebase.app.auth.PhoneAuthProvider.PROVIDER_ID,

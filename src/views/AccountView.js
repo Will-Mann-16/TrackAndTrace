@@ -26,9 +26,7 @@ export default function AccountView() {
         setReauth(true);
         firebase.ui.start("#firebaseui-reauth-container", {
           signInSuccessUrl:
-            process.env.NODE_ENV === "production"
-              ? process.env.REACT_APP_PROD_URL
-              : process.env.REACT_APP_DEV_URL,
+            window.location.href,
           signInOptions: [
             {
               provider: firebase.app.auth.PhoneAuthProvider.PROVIDER_ID,
