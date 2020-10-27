@@ -6,9 +6,10 @@ import {
   Redirect,
   useHistory,
   useLocation,
+  Link
 } from "react-router-dom";
 import { useUser, useFirebase } from "./firebase";
-import { Layout, Menu, Typography, Button, Drawer } from "antd";
+import { Layout, Menu, Typography, Button, Drawer, Avatar } from "antd";
 import { MenuOutlined } from '@ant-design/icons'
 import styled, { css } from "styled-components";
 import useMediaQuery from '@material-ui/core/useMediaQuery';
@@ -51,9 +52,17 @@ const Topbar = styled(Header)`
   background-color: #144733;
 `;
 
+const Right = styled.div`
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+`;
+
 function App() {
   const [visible, setVisible] = useState(false);
   const matched = useMediaQuery('(min-width: 992px)')
+  const user = useUser();
   return (
     <BrowserRouter>
       <Layout style={{ minHeight: "100vh" }}>
@@ -79,7 +88,11 @@ function App() {
           >
             Track & Trace
           </Title>
-          <div style={{flex: 1}} />
+          <Right>
+            {user?.photoURL && <Link to='/account'>
+              <Avatar size="large" src={user.photoURL} />
+            </Link>}
+          </Right>
         </Topbar>
         <Layout>
           <Sider
@@ -112,7 +125,7 @@ function Container() {
 
   return (
     <Sentry.ErrorBoundary fallback="An error has occursed">
-    <Main center={!user} fullWidth={location.pathname === "/admin" || location.pathname === "/teams"}>
+    <Main center={!user} fullWidth={location.pathname === "/admin" || location.pathname.includes("/teams")}>
       {!!user ? (
         <>
         <Switch>

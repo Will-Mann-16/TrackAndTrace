@@ -1,6 +1,15 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useUser, useTeams, useFirebase } from "../firebase";
-import { List, notification, Form, Select, Button, Modal, Divider } from "antd";
+import {
+  List,
+  notification,
+  Form,
+  Select,
+  Button,
+  Modal,
+  Divider,
+  Avatar,
+} from "antd";
 import { CloseOutlined } from "@ant-design/icons";
 import { sortBy } from "lodash";
 import { useMembers } from "./AttendingMembers";
@@ -44,9 +53,11 @@ export default function PickTeam({ visible, toggle, session }) {
                 team: session.team,
               })
             }
-            onFinishFailed={(err) => notification.error({
-              message: err.message
-            })}
+            onFinishFailed={(err) =>
+              notification.error({
+                message: err.message,
+              })
+            }
           >
             <Form.Item
               name='attending'
@@ -69,7 +80,9 @@ export default function PickTeam({ visible, toggle, session }) {
               </Select>
             </Form.Item>
             <Form.Item>
-              <Button type='primary' htmlType='submit'>Add</Button>
+              <Button type='primary' htmlType='submit'>
+                Add
+              </Button>
             </Form.Item>
           </Form>
           <Divider />
@@ -102,7 +115,10 @@ export default function PickTeam({ visible, toggle, session }) {
               ]
             }
           >
-            <List.Item.Meta title={member.displayName} />
+            <List.Item.Meta
+              avatar={member.photoURL && <Avatar src={member.photoURL} />}
+              title={member.displayName}
+            />
           </List.Item>
         )}
       />

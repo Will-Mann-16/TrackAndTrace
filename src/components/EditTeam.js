@@ -1,6 +1,7 @@
 import React from "react";
 import { useFirebase } from "../firebase";
 import { Form, Input, Modal } from "antd";
+import Upload from './Upload';
 import RichTextEditor from "./RichTextEditor";
 
 export default function EditTeam({ visible, toggle, team: { id, ...values } }) {
@@ -29,6 +30,9 @@ export default function EditTeam({ visible, toggle, team: { id, ...values } }) {
         name='edit-team'
         initialValues={{ ...values }}
       >
+    <Form.Item name='photoURL' label='Featured Image'>
+    <Upload getName={() => id} folder='/teams/' fluid />
+    </Form.Item>
         <Form.Item
           name='name'
           label='Team name'

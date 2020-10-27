@@ -13,20 +13,42 @@ import {
   Col,
   List,
   Modal,
+  Layout,
   Button,
   Tooltip,
   Badge,
 } from "antd";
 import { DateTime } from "luxon";
-import styled from "styled-components";
+import styled, { css } from "styled-components";
 import { sortBy } from "lodash";
 import Session from "../components/Session";
 import EditSession from "../components/EditSession";
 import EditTeam from "../components/EditTeam";
 import AssignMembers from "../components/AssignMembers";
+import Avatar from "antd/lib/avatar/avatar";
+
+const { Content } = Layout;
 
 const Card = styled(C)`
   height: 100%;
+`;
+
+const Background = styled.div`
+  ${({ image }) =>
+    image &&
+    css`
+      background-image: url(${image});
+      background-repeat: no-repeat;
+      background-position: center;
+      background-attachment: fixed;
+      background-size: cover;
+    `}
+`;
+
+Background.Inner = styled(Content)`
+  max-width: 960px;
+  width: 100%;
+  margin: auto;
 `;
 
 const { Title, Text } = Typography;
@@ -82,136 +104,152 @@ export default function TeamView() {
   }
 
   return (
-    <>
-      <Card
-        title={team.name}
-        loading={loadingTeams}
-        extra={
-          (team.captains?.find((e) => e.id === user.id) || user.admin) && (
-            <IconText
-              text='Edit'
-              tooltip='Edit your team info'
-              icon={EditOutlined}
-              onClick={() => setEdit(true)}
-            />
-          )
-        }
-      >
-        <div dangerouslySetInnerHTML={{__html: team.bio}} />
-      </Card>
-      <Row style={{ paddingTop: 16 }} gutter={[16, 16]}>
-        <Col md={12} xs={24}>
-          <Card title='Captains' loading={loadingTeams}>
-            <List
+    <Background image={team.photoURL}>
+      <Background.Inner>
+        <Card
+          title={team.name}
+          loading={loadingTeams}
+          extra={
+            (team.captains?.find((e) => e.id === user.id) || user.admin) && (
+              <IconText
+                text='Edit'
+                tooltip='Edit your team info'
+                icon={EditOutlined}
+                onClick={() => setEdit(true)}
+              />
+            )
+          }
+          // cover={team.photoURL && <img src={team.photoURL} alt={team.name} />}
+        >
+          <div dangerouslySetInnerHTML={{ __html: team.bio }} />
+        </Card>
+        <Row style={{ paddingTop: 16 }} gutter={[16, 16]}>
+          <Col md={12} xs={24}>
+            <Card title='Captains' loading={loadingTeams}>
+              <List
+                loading={loadingTeams}
+                itemLayout='horizontal'
+                renderItem={(captain) => (
+                  <List.Item key={captain.id}>
+                    <List.Item.Meta
+                      avatar={
+                        captain.photoURL && <Avatar src={captain.photoURL} />
+                      }
+                      title={captain.displayName}
+                      description={
+                        <>
+                          <a href={`tel:${captain.phoneNumber}`}>
+                            {captain.phoneNumber}
+                          </a>
+                          <br />
+                          <a href={`mailto:${captain.email}`}>
+                            {captain.email}
+                          </a>
+                        </>
+                      }
+                    />
+                  </List.Item>
+                )}
+                dataSource={sortBy(team.captains, ["displayName"])}
+              />
+            </Card>
+          </Col>
+          <Col md={12} xs={24}>
+            <Card
               loading={loadingTeams}
-              itemLayout='horizontal'
-              renderItem={(captain) => (
-                <List.Item key={captain.id}>
-                  <List.Item.Meta
-                    title={captain.displayName}
-                    description={
-                      <>
-                        <a href={`tel:${captain.phoneNumber}`}>
-                          {captain.phoneNumber}
-                        </a>
-                        <br />
-                        <a href={`mailto:${captain.email}`}>{captain.email}</a>
-                      </>
-                    }
+              title='Members'
+              extra={
+                (team.captains?.find((e) => e.id === user.id) ||
+                  user.admin) && (
+                  <IconText
+                    text='Members'
+                    tooltip='Add/Remove members from your team'
+                    icon={UsergroupAddOutlined}
+                    onClick={() => setMembers(true)}
+                    badge={team.applied?.length > 0 && team.applied.length}
                   />
-                </List.Item>
-              )}
-              dataSource={sortBy(team.captains, ["displayName"])}
-            />
-          </Card>
-        </Col>
-        <Col md={12} xs={24}>
-          <Card
-            loading={loadingTeams}
-            title='Members'
-            extra={
-              (team.captains?.find((e) => e.id === user.id) || user.admin) && (
-                <IconText
-                  text='Members'
-                  tooltip='Add/Remove members from your team'
-                  icon={UsergroupAddOutlined}
-                  onClick={() => setMembers(true)}
-                  badge={team.applied?.length > 0 && team.applied.length}
-                />
-              )
-            }
-          >
-            <List
-              loading={loadingTeams}
-              itemLayout='horizontal'
-              pagination={{ pageSize: 5 }}
-              renderItem={(member) => (
-                <List.Item key={member.id}>
-                  <List.Item.Meta title={member.displayName} />
-                </List.Item>
-              )}
-              dataSource={sortBy(team.members, ["displayName"])}
-            />
-          </Card>
-        </Col>
-      </Row>
-      <Card
-        title='Sessions'
-        loading={loadingSessions && sessions.length === 0}
-        extra={
-          (team.captains?.find((e) => e.id === user.id) || user.admin) && (
-            <IconText
-              text='Add'
-              tooltip='Add a new fixture/training session'
-              icon={PlusOutlined}
-              onClick={() => setAddSession(true)}
-            />
-          )
-        }
-      >
-        <List
-          dataSource={sessions
-            .filter((e) => e.team === teamId)
-            .sort((a, b) => {
-              if (
-                DateTime.local().startOf("day").toJSDate() > a.start.toDate() &&
-                DateTime.local().startOf("day").toJSDate() <= b.start.toDate()
-              )
-                return 1;
-              else if (
-                DateTime.local().startOf("day").toJSDate() > a.start.toDate() &&
-                DateTime.local().startOf("day").toJSDate() > b.start.toDate()
-              )
-                return b.start.toDate() - a.start.toDate();
-              return a.start.toDate() - b.start.toDate();
-            })}
-          pagination={{ pageSize: 5 }}
-          itemLayout='vertical'
-          renderItem={(session) => (
-            <Session key={session.id} session={session} showActions />
-          )}
-        />
-      </Card>
-      {(team.captains?.find((e) => e.id === user.id) || user.admin) && (
-        <>
-          <EditTeam
-            visible={edit}
-            team={team}
-            toggle={() => setEdit((e) => !e)}
+                )
+              }
+            >
+              <List
+                loading={loadingTeams}
+                itemLayout='horizontal'
+                pagination={{ pageSize: 5 }}
+                renderItem={(member) => (
+                  <List.Item key={member.id}>
+                    <List.Item.Meta
+                      avatar={
+                        member.photoURL && <Avatar src={member.photoURL} />
+                      }
+                      title={member.displayName}
+                    />
+                  </List.Item>
+                )}
+                dataSource={sortBy(team.members, ["displayName"])}
+              />
+            </Card>
+          </Col>
+        </Row>
+        <Card
+          title='Sessions'
+          loading={loadingSessions && sessions.length === 0}
+          extra={
+            (team.captains?.find((e) => e.id === user.id) || user.admin) && (
+              <IconText
+                text='Add'
+                tooltip='Add a new fixture/training session'
+                icon={PlusOutlined}
+                onClick={() => setAddSession(true)}
+              />
+            )
+          }
+        >
+          <List
+            dataSource={sessions
+              .filter((e) => e.team === teamId)
+              .sort((a, b) => {
+                if (
+                  DateTime.local().startOf("day").toJSDate() >
+                    a.start.toDate() &&
+                  DateTime.local().startOf("day").toJSDate() <= b.start.toDate()
+                )
+                  return 1;
+                else if (
+                  DateTime.local().startOf("day").toJSDate() >
+                    a.start.toDate() &&
+                  DateTime.local().startOf("day").toJSDate() > b.start.toDate()
+                )
+                  return b.start.toDate() - a.start.toDate();
+                return a.start.toDate() - b.start.toDate();
+              })}
+            pagination={{ pageSize: 5 }}
+            itemLayout='vertical'
+            renderItem={(session) => (
+              <Session key={session.id} session={session} showActions />
+            )}
           />
-          <AssignMembers
-            visible={members}
-            team={team}
-            toggle={() => setMembers((e) => !e)}
-          />
-          <EditSession
-            visible={addSession}
-            team={team}
-            session={addSession}
-            toggle={() => setAddSession(false)}
-          />
-        </>
-      )}
-    </>
+        </Card>
+        {(team.captains?.find((e) => e.id === user.id) || user.admin) && (
+          <>
+            <EditTeam
+              visible={edit}
+              team={team}
+              toggle={() => setEdit((e) => !e)}
+            />
+            <AssignMembers
+              visible={members}
+              team={team}
+              toggle={() => setMembers((e) => !e)}
+            />
+            <EditSession
+              visible={addSession}
+              team={team}
+              session={addSession}
+              toggle={() => setAddSession(false)}
+            />
+          </>
+        )}
+      </Background.Inner>
+    </Background>
   );
 }

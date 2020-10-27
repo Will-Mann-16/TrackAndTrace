@@ -9,7 +9,7 @@ import {
   CloseOutlined,
   TeamOutlined,
 } from "@ant-design/icons";
-import { List, Button, Popconfirm, notification, Tooltip } from "antd";
+import { List, Button, Popconfirm, notification, Tooltip, Avatar } from "antd";
 import { DateTime } from "luxon";
 import { saveAs } from "file-saver";
 import { Link } from "react-router-dom";

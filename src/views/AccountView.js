@@ -3,6 +3,7 @@ import { Form, Input, Button, Typography, notification } from "antd";
 import { useUser, useFirebase } from "../firebase";
 import { PhoneNumberUtil } from "google-libphonenumber";
 import { useHistory } from "react-router-dom";
+import Upload from '../components/Upload';
 
 const phoneUtil = PhoneNumberUtil.getInstance();
 export default function AccountView() {
@@ -91,8 +92,12 @@ export default function AccountView() {
             displayName: user.displayName,
             email: user.email,
             phoneNumber: user.phoneNumber,
+            photoURL: user.photoURL
           }}
         >
+        <Form.Item name="photoURL" label="Profile Picture">
+          <Upload getName={() => user.id} folder='/users/' />
+        </Form.Item>
           <Form.Item
             label='Name'
             name='displayName'

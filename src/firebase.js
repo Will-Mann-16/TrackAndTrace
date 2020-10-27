@@ -3,6 +3,7 @@ import app from "firebase/app";
 import "firebase/auth";
 import "firebase/firestore";
 import "firebase/analytics";
+import "firebase/storage";
 import * as firebaseUI from "firebaseui";
 import { DateTime } from "luxon";
 import LogRocket from "logrocket";
@@ -28,6 +29,7 @@ class Firebase {
     this.app = app;
     this.auth = app.auth();
     this.firestore = app.firestore();
+    this.storage = app.storage();
     this.ui = new firebaseUI.auth.AuthUI(this.auth);
     this.analytics = app.analytics();
   }
@@ -140,12 +142,12 @@ class Firebase {
     });
   };
 
-  updateUser = async ({ email, phoneNumber, displayName }) => {
+  updateUser = async ({ email, phoneNumber, displayName, photoURL }) => {
     const current = this.auth.currentUser;
 
     await current.updateEmail(email.replace(/^\s+|\s+$/gm, "").toLowerCase());
     // await current.updatePhoneNumber(phoneNumber);
-    await current.updateProfile({ displayName });
+    await current.updateProfile({ displayName, photoURL });
 
     await this.firestore
       .collection("users")
@@ -154,6 +156,7 @@ class Firebase {
         email: email.replace(/^\s+|\s+$/gm, "").toLowerCase(),
         phoneNumber,
         displayName,
+        photoURL
       });
 
     return current;
@@ -554,6 +557,21 @@ class Firebase {
       throw new Error("Not authorized");
     }
   };
+
+
+  uploadFile = async (file, filename, folder='/users/', onProgress) => {
+    const fileRef = this.storage.ref(`${folder}/${filename}`);
+
+    await fileRef.put(file).on('state_changed', snapshot => {
+      let progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+      if(onProgress) onProgress(progress);
+    });
+
+
+    await fileRef.put(file);
+
+    return await fileRef.getDownloadURL();
+  }
 }
 
 export const FirebaseContext = createContext();

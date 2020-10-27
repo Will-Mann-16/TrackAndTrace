@@ -72,7 +72,7 @@ function UserList(props) {
         />
       ) : (
         <Datagrid rowClick='edit'>
-          {/* <ImageField source="photoURL" /> */}
+          <ImageField source="photoURL" />
           <TextField source='displayName' />
           <EmailField source='email' />
           <TextField source='phoneNumber' />

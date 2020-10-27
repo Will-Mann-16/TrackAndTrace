@@ -9,10 +9,16 @@ import {
   Space,
   Divider,
   Dropdown,
-  Menu
+  Menu,
+  Avatar
 } from "antd";
 import { sortBy } from "lodash";
-import { CheckOutlined, CloseOutlined, PlusOutlined, DownOutlined } from "@ant-design/icons";
+import {
+  CheckOutlined,
+  CloseOutlined,
+  PlusOutlined,
+  DownOutlined,
+} from "@ant-design/icons";
 
 const { Option } = Select;
 export default function AssignMembers({
@@ -89,23 +95,29 @@ export default function AssignMembers({
                   ]
             }
           >
-            <List.Item.Meta title={member.displayName} />
+            <List.Item.Meta
+              avatar={member.photoURL && <Avatar src={member.photoURL} />}
+              title={member.displayName}
+            />
           </List.Item>
         )}
-
       />
-      <br/>
-        <Dropdown overlay={<Menu>
-          {userList.map(({ id: uid, displayName }) => (
-            <Menu.Item key={uid} onClick={() => firebase.addMember(id, uid)}>
-              {displayName}
-            </Menu.Item>
-          ))}
-        </Menu>}>
-          <Button block type='primary'>
-            <PlusOutlined /> Add Member <DownOutlined/>
-          </Button>
-        </Dropdown>
+      <br />
+      <Dropdown
+        overlay={
+          <Menu>
+            {userList.map(({ id: uid, displayName }) => (
+              <Menu.Item key={uid} onClick={() => firebase.addMember(id, uid)}>
+                {displayName}
+              </Menu.Item>
+            ))}
+          </Menu>
+        }
+      >
+        <Button block type='primary'>
+          <PlusOutlined /> Add Member <DownOutlined />
+        </Button>
+      </Dropdown>
     </Modal>
   );
 }

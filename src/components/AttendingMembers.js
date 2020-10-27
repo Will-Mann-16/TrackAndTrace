@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useUser, useTeams } from "../firebase";
-import { List, Modal, Button } from "antd";
+import { List, Modal, Button, Avatar } from "antd";
 import { sortBy } from "lodash";
 
 export function useMembers(session, key) {
@@ -42,7 +42,10 @@ export default function AttendingMembers({
         pagination={{ pageSize: 10 }}
         renderItem={(member) => (
           <List.Item key={member.id}>
-            <List.Item.Meta title={member.displayName} />
+            <List.Item.Meta
+              avatar={member.photoURL && <Avatar src={member.photoURL} />}
+              title={member.displayName}
+            />
           </List.Item>
         )}
       />
